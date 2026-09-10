@@ -100,6 +100,15 @@
 - **[Entity 1]**: [What it represents, key attributes without implementation]
 - **[Entity 2]**: [What it represents, relationships to other entities]
 
+### Operational Controls *(include when applicable)*
+
+- **Authorization**: [Server-side permissions and roles required]
+- **Auditability**: [Sensitive actions and audit records required]
+- **Commercial authority**: [Server validation/calculation and pricing precedence]
+- **Transaction integrity**: [Atomic state changes, reservations, or balances]
+- **Events & integrations**: [Domain events, adapters, failure/retry behavior]
+- **Existing functionality impact**: [Capabilities preserved or explicitly replaced]
+
 ## Success Criteria *(mandatory)*
 
 <!--

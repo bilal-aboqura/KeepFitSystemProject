@@ -31,7 +31,16 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- [ ] Reuses and preserves the existing Next.js/React/Supabase modular monolith; any
+      exception is documented and approved.
+- [ ] Defines the shared source of truth and intentional module/service interfaces.
+- [ ] Uses Product Variant as the stock/order reference where commercial or inventory
+      behavior is affected.
+- [ ] Moves commercial decisions to server-side services and documents pricing,
+      authorization, lifecycle, transaction, and audit controls that apply.
+- [ ] Defines domain events, integration adapters, side-effect failure/retry behavior,
+      and AI-tool boundaries where applicable.
+- [ ] Includes targeted tests for affected critical rules and checks preserved behavior.
 
 ## Project Structure
 

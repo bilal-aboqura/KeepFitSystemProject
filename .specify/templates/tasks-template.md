@@ -8,7 +8,10 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Tests**: Include targeted automated tests for every affected critical business rule.
+Tests are mandatory for constitution-priority areas: authentication, authorization,
+approval, pricing, server cart validation, order lifecycle, payments, inventory, and
+financial calculations. Other tests follow the feature specification.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -68,6 +71,8 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T007 Create base models/entities that all stories depend on
 - [ ] T008 Configure error handling and logging infrastructure
 - [ ] T009 Setup environment configuration management
+- [ ] T009a Define server authorization, audit, transaction, and domain-event foundations
+          required by the feature
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -155,6 +160,8 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX Performance optimization across all stories
 - [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
 - [ ] TXXX Security hardening
+- [ ] TXXX Verify audit records, integration failure handling, and preserved existing
+          functionality affected by this feature
 - [ ] TXXX Run quickstart.md validation
 
 ---
