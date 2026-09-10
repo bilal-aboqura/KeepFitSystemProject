@@ -7,14 +7,20 @@ import { getLang } from "@/lib/i18n/server";
 import { formatPrice } from "@/lib/utils";
 import { CheckCircle, Clock, MessageCircle, ArrowLeft, Package } from "lucide-react";
 import { MetaPurchase } from "@/components/storefront/meta-purchase";
+import { cookies } from "next/headers";
+import { getCurrentCustomer } from "@/lib/customers/session";
+import { confirmationGrantCookieName, getCustomerOrder, hasGuestConfirmationGrant } from "@/lib/customers/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function CheckoutSuccessPage({ searchParams }: { searchParams: Promise<{ order?: string }> }) {
   const sp = await searchParams;
   if (!sp.order) notFound();
-  const [order, lang] = await Promise.all([getOrderByNumber(sp.order), getLang()]);
+  const [order, lang, customer, cookieStore] = await Promise.all([getOrderByNumber(sp.order), getLang(), getCurrentCustomer(), cookies()]);
   if (!order) notFound();
+  const owned = customer?.id ? Boolean(await getCustomerOrder(customer.id, sp.order)) : false;
+  const granted = await hasGuestConfirmationGrant(order.id, cookieStore.get(confirmationGrantCookieName(sp.order))?.value);
+  if (!owned && !granted) notFound();
   const ar = lang === "ar";
 
   const whatsapp = buildOwnerWhatsAppUrl(order);

@@ -1,0 +1,4 @@
+import Link from "next/link";
+import { getCurrentCustomer } from "@/lib/customers/session";
+import { listCustomerOrders } from "@/lib/customers/queries";
+export default async function AccountOrdersPage() { const customer = await getCurrentCustomer(); const orders = customer ? await listCustomerOrders(customer.id) : []; return <section><h1 className="text-3xl font-bold text-fg">My orders</h1>{orders.length ? <div className="mt-6 grid gap-3">{orders.map((order) => <Link key={order.order_number} href={`/account/orders/${order.order_number}`} className="glass flex items-center justify-between p-4"><span className="font-mono text-sm text-fg">{order.order_number}</span><span className="text-sm text-fg-muted">{order.fulfillment_status} · EGP {Number(order.grand_total).toFixed(2)}</span></Link>)}</div> : <p className="glass mt-6 p-6 text-fg-muted">You have no account orders yet.</p>}</section>; }

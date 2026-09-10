@@ -19,6 +19,7 @@ export async function proxy(request: NextRequest) {
   // /admin/login. The authoritative authz check lives in the admin layout.
   const isAdminArea = pathname.startsWith("/admin");
   const isAdminLogin = pathname === "/admin/login";
+  const isAccountArea = pathname.startsWith("/account");
   if (isAdminArea && !isAdminLogin) {
     // Session cookies are refreshed above; presence of sb-* auth cookie is a
     // cheap signal that *some* session exists. Real validation is server-side.
@@ -29,6 +30,16 @@ export async function proxy(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = "/admin/login";
       url.searchParams.set("next", pathname);
+      return NextResponse.redirect(url);
+    }
+  }
+
+  if (isAccountArea) {
+    const hasSession = request.cookies.getAll().some((c) => c.name.startsWith("sb-"));
+    if (!hasSession) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      url.searchParams.set("auth", "required");
       return NextResponse.redirect(url);
     }
   }

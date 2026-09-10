@@ -30,6 +30,15 @@ drop policy if exists "product_images_auth_delete" on storage.objects;
 create policy "product_images_auth_delete" on storage.objects
   for delete to authenticated using (bucket_id = 'product-images');
 
+-- Feature 001 replaces broad authenticated storage mutation with server/admin-only access.
+drop policy if exists "product_images_auth_upload" on storage.objects;
+drop policy if exists "product_images_auth_update" on storage.objects;
+drop policy if exists "product_images_auth_delete" on storage.objects;
+drop policy if exists "product_images_admin_write" on storage.objects;
+create policy "product_images_admin_write" on storage.objects for all to authenticated
+  using (bucket_id = 'product-images' and exists (select 1 from public.profiles where id = auth.uid() and is_admin))
+  with check (bucket_id = 'product-images' and exists (select 1 from public.profiles where id = auth.uid() and is_admin));
+
 -- ---------------------------------------------------------------- categories
 create table if not exists public.categories (
   id          uuid primary key default gen_random_uuid(),
@@ -390,6 +399,7 @@ create policy "profiles_self_read" on public.profiles
 drop policy if exists "addresses_owner_all" on public.addresses;
 create policy "addresses_owner_all" on public.addresses
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "addresses_owner_all" on public.addresses;
 
 -- orders: owner read (guest/server writes via service role)
 drop policy if exists "orders_owner_read" on public.orders;

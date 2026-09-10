@@ -14,6 +14,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Database scripts (run with env loaded from .env.local)
 - Apply schema + seed catalog/locations/shipping: `node --env-file=.env.local scripts/migrate.mjs`
 - Create/refresh owner admin: `node --env-file=.env.local scripts/seed-admin.mjs`
+- Apply Feature 001 customer identity migration: `node --env-file=.env.local scripts/migrate-feature-001.mjs`
 - Schema DDL lives in `supabase/schema.sql`. Migrations use `DIRECT_URL` (session pooler, port 5432).
 
 ## Critical version facts (Next.js 16 + React 19 + Tailwind v4)

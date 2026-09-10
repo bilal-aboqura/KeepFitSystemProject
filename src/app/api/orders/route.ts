@@ -4,6 +4,9 @@ import { createOrder, getOrderByNumber } from "@/lib/data/orders";
 import { createCheckoutUrl } from "@/lib/kashier";
 import { sendNewOrderNotifications } from "@/lib/notifications";
 import { sendPurchaseOrderToMeta } from "@/lib/meta-conversions";
+import { getCurrentCustomer } from "@/lib/customers/session";
+import { isCustomerProfileComplete } from "@/lib/customers/identity";
+import { issueGuestConfirmationGrant } from "@/lib/customers/queries";
 
 const ItemSchema = z.object({
   product_id: z.string().uuid(),
@@ -55,6 +58,10 @@ export async function POST(request: NextRequest) {
   }
   const input = parsed.data;
 
+  const customer = await getCurrentCustomer();
+  if (customer && !isCustomerProfileComplete(customer)) {
+    return NextResponse.json({ error: "Complete your account profile before placing an authenticated order.", redirect: "/account/complete-profile" }, { status: 422 });
+  }
   const order = await createOrder({
     customer_name: input.customer_name,
     customer_phone: input.customer_phone,
@@ -65,6 +72,8 @@ export async function POST(request: NextRequest) {
     notes: input.notes,
     payment_method: input.payment_method,
     discount_code: input.discount_code ?? null,
+    customer_id: customer?.id ?? null,
+    user_id: customer?.auth_user_id ?? null,
     items: input.items,
   });
 
@@ -86,10 +95,12 @@ export async function POST(request: NextRequest) {
         ]);
       }
     });
-    return NextResponse.json({
+    const response = NextResponse.json({
       order_number: order.order_number,
       redirect: `/checkout/success?order=${order.order_number}`,
     });
+    if (!customer) { const grant = await issueGuestConfirmationGrant(order.id, order.order_number); if (grant) response.cookies.set(grant.name, grant.value, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", expires: new Date(grant.expiresAt), path: "/checkout" }); }
+    return response;
   }
 
   // Card: build the Kashier hosted-checkout URL.
@@ -103,10 +114,12 @@ export async function POST(request: NextRequest) {
       },
       customerName: input.customer_name,
     });
-    return NextResponse.json({
+    const response = NextResponse.json({
       order_number: order.order_number,
       redirect: checkoutUrl,
     });
+    if (!customer) { const grant = await issueGuestConfirmationGrant(order.id, order.order_number); if (grant) response.cookies.set(grant.name, grant.value, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", expires: new Date(grant.expiresAt), path: "/checkout" }); }
+    return response;
   } catch (e) {
     console.error("Kashier checkout URL failed:", e);
     return NextResponse.json(

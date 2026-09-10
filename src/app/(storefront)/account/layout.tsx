@@ -1,0 +1,4 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentCustomer } from "@/lib/customers/session";
+export default async function AccountLayout({ children }: { children: React.ReactNode }) { const customer = await getCurrentCustomer(); if (!customer) redirect("/?auth=required"); return <div className="mx-auto w-full max-w-5xl px-5 py-10"><nav className="mb-6 flex flex-wrap gap-2 text-sm"><Link className="rounded-lg border border-border px-3 py-2" href="/account">Overview</Link><Link className="rounded-lg border border-border px-3 py-2" href="/account/profile">Profile</Link><Link className="rounded-lg border border-border px-3 py-2" href="/account/addresses">Addresses</Link><Link className="rounded-lg border border-border px-3 py-2" href="/account/orders">My orders</Link></nav>{children}</div>; }

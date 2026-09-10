@@ -62,6 +62,13 @@ node --env-file=.env.local scripts/seed-admin.mjs
 
 Feature migrations must be reproducible and additive; do not make manual production changes.
 
+### Google customer sign-in
+
+Enable Google in Supabase Authentication and register `http://localhost:3000/auth/callback`
+for local development plus `https://YOUR-DOMAIN/auth/callback` in production. Add the same
+URLs to Supabase's redirect allow-list. The application callback exchanges the code server-side;
+never place provider secrets in `NEXT_PUBLIC_` variables.
+
 ## Operational Integrations
 
 Kashier, Bosta, Mylerz, notifications, Meta tracking, and analytics are existing working

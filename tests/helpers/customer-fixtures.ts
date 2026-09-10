@@ -1,0 +1,1 @@
+export const customerFixture = { id: "00000000-0000-4000-8000-000000000001", auth_user_id: "00000000-0000-4000-8000-000000000002", full_name: "Test Customer", email: "test@example.com", phone: "01012345678", created_at: new Date().toISOString(), updated_at: new Date().toISOString() };

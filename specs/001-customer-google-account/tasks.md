@@ -26,11 +26,11 @@ implemented and verified after the shared security foundation is complete.
 **Purpose**: Establish repeatable development, migration, and test entry points without
 changing customer behavior.
 
-- [ ] T001 Add Vitest scripts, configuration, and test environment setup in `package.json`, `vitest.config.ts`, and `tests/setup.ts`
+- [X] T001 Add Vitest scripts, configuration, and test environment setup in `package.json`, `vitest.config.ts`, and `tests/setup.ts`
 - [ ] T002 [P] Add customer-domain test fixtures and Supabase test helpers in `tests/helpers/customer-fixtures.ts` and `tests/helpers/supabase-test-db.ts`
-- [ ] T003 [P] Add the Feature 001 migration runner skeleton using `DIRECT_URL` in `scripts/migrate-feature-001.mjs`
-- [ ] T004 [P] Document local/production Google OAuth callback configuration requirements in `.env.example` and `README.md`
-- [ ] T005 Add Feature 001 migration and regression commands to `AGENTS.md`
+- [X] T003 [P] Add the Feature 001 migration runner skeleton using `DIRECT_URL` in `scripts/migrate-feature-001.mjs`
+- [X] T004 [P] Document local/production Google OAuth callback configuration requirements in `.env.example` and `README.md`
+- [X] T005 Add Feature 001 migration and regression commands to `AGENTS.md`
 
 ---
 
@@ -43,14 +43,14 @@ server boundaries before customer-facing stories begin.
 
 - [ ] T006 Create the ordered additive Customer, address-ownership, order-ownership, confirmation-grant, index, and partial-default-index migration in `supabase/migrations/001_customer_identity.sql`
 - [ ] T007 Update convergent Customer, address, order, function, grant, and RLS definitions in `supabase/schema.sql`
-- [ ] T008 Implement server-only Customer domain types and canonical ownership representations in `src/lib/customers/types.ts`
-- [ ] T009 [P] Extract shared Egyptian phone normalization and Zod schemas from checkout rules into `src/lib/customers/validation.ts`
-- [ ] T010 Implement idempotent Auth-user-to-Customer resolver and completeness predicate in `src/lib/customers/identity.ts`
-- [ ] T011 Implement current-session Customer lookup and customer-route authorization helpers in `src/lib/customers/session.ts`
-- [ ] T012 Implement allowed-field Customer profile query/update service with synchronized auth projection in `src/lib/customers/profile.ts`
-- [ ] T013 Implement Customer-owned address query/command service with atomic default transitions in `src/lib/customers/addresses.ts`
-- [ ] T014 Implement Customer-owned order queries and guest-confirmation grant verification in `src/lib/customers/queries.ts`
-- [ ] T015 Replace broad authenticated product-media mutation policies with the admin-only policy in `supabase/migrations/001_customer_identity.sql` and `supabase/schema.sql`
+- [X] T008 Implement server-only Customer domain types and canonical ownership representations in `src/lib/customers/types.ts`
+- [X] T009 [P] Extract shared Egyptian phone normalization and Zod schemas from checkout rules into `src/lib/customers/validation.ts`
+- [X] T010 Implement idempotent Auth-user-to-Customer resolver and completeness predicate in `src/lib/customers/identity.ts`
+- [X] T011 Implement current-session Customer lookup and customer-route authorization helpers in `src/lib/customers/session.ts`
+- [X] T012 Implement allowed-field Customer profile query/update service with synchronized auth projection in `src/lib/customers/profile.ts`
+- [X] T013 Implement Customer-owned address query/command service with atomic default transitions in `src/lib/customers/addresses.ts`
+- [X] T014 Implement Customer-owned order queries and guest-confirmation grant verification in `src/lib/customers/queries.ts`
+- [X] T015 Replace broad authenticated product-media mutation policies with the admin-only policy in `supabase/migrations/001_customer_identity.sql` and `supabase/schema.sql`
 - [ ] T016 Add unit tests for normalization, shared-phone acceptance, resolver idempotency, profile completeness, and privileged-field rejection in `tests/unit/customers/identity-profile.test.ts`
 - [ ] T017 Add database integration tests for RLS ownership, default-address invariant, Customer/Auth uniqueness, and customer storage denial in `tests/integration/security/customer-rls-storage.test.ts`
 - [ ] T018 Run the Feature 001 migration against an isolated test database and record schema/RLS validation in `tests/integration/security/migration-validation.test.ts`
@@ -75,14 +75,14 @@ it, an incomplete account completes profile information, and sign-out blocks acc
 
 ### Implementation for User Story 1
 
-- [ ] T021 [US1] Implement Google sign-in initiation with validated local return paths in `src/app/api/customer/auth/google/route.ts`
-- [ ] T022 [US1] Implement SSR OAuth code exchange, Customer resolution, profile-completion redirect, and generic failure redirect in `src/app/auth/callback/route.ts`
+- [X] T021 [US1] Implement Google sign-in initiation with validated local return paths in `src/app/api/customer/auth/google/route.ts`
+- [X] T022 [US1] Implement SSR OAuth code exchange, Customer resolution, profile-completion redirect, and generic failure redirect in `src/app/auth/callback/route.ts`
 - [ ] T023 [P] [US1] Implement the reusable storefront Google sign-in and sign-out action component in `src/components/storefront/customer-auth.tsx`
 - [ ] T024 [US1] Add session-aware account/sign-in state to `src/components/storefront/navbar.tsx`
-- [ ] T025 [US1] Add authenticated customer route protection while retaining proxy session refresh and admin guards in `src/proxy.ts`
-- [ ] T026 [US1] Create the mobile-first account shell and protected Overview route in `src/app/(storefront)/account/layout.tsx` and `src/app/(storefront)/account/page.tsx`
+- [X] T025 [US1] Add authenticated customer route protection while retaining proxy session refresh and admin guards in `src/proxy.ts`
+- [X] T026 [US1] Create the mobile-first account shell and protected Overview route in `src/app/(storefront)/account/layout.tsx` and `src/app/(storefront)/account/page.tsx`
 - [ ] T027 [US1] Create profile-completion form, loading/error states, and completion redirect in `src/app/(storefront)/account/complete-profile/page.tsx` and `src/components/storefront/customer-profile-form.tsx`
-- [ ] T028 [US1] Implement authenticated self-profile read/update endpoint using only allow-listed fields in `src/app/api/customer/me/route.ts`
+- [X] T028 [US1] Implement authenticated self-profile read/update endpoint using only allow-listed fields in `src/app/api/customer/me/route.ts`
 - [ ] T029 [US1] Wire profile-completeness checks into authenticated storefront/account entry in `src/app/(storefront)/layout.tsx`
 
 **Checkpoint**: Google is the only customer login method; customer sessions never grant admin
@@ -108,9 +108,9 @@ unable to read, modify, or delete any of Customer A's records.
 - [ ] T032 [US2] Create permitted profile view/edit page with mobile RTL loading and error states in `src/app/(storefront)/account/profile/page.tsx`
 - [ ] T033 [US2] Create address list empty state and mobile account page in `src/app/(storefront)/account/addresses/page.tsx`
 - [ ] T034 [P] [US2] Create reusable address editor/default-selection form in `src/components/storefront/customer-address-form.tsx`
-- [ ] T035 [US2] Implement owned address list/create handler in `src/app/api/customer/addresses/route.ts`
-- [ ] T036 [US2] Implement owned address update/delete handler in `src/app/api/customer/addresses/[id]/route.ts`
-- [ ] T037 [US2] Implement atomic owned-address default selection handler in `src/app/api/customer/addresses/[id]/default/route.ts`
+- [X] T035 [US2] Implement owned address list/create handler in `src/app/api/customer/addresses/route.ts`
+- [X] T036 [US2] Implement owned address update/delete handler in `src/app/api/customer/addresses/[id]/route.ts`
+- [X] T037 [US2] Implement atomic owned-address default selection handler in `src/app/api/customer/addresses/[id]/default/route.ts`
 - [ ] T038 [US2] Add Customer profile and address actions to account overview navigation in `src/app/(storefront)/account/page.tsx`
 - [ ] T039 [US2] Verify all profile/address forms retain Arabic RTL, English LTR, touch targets, and no-horizontal-scroll behavior at 390px in `tests/integration/customer-account/mobile-account-ui.test.tsx`
 
@@ -137,13 +137,13 @@ own confirmation grant.
 ### Implementation for User Story 3
 
 - [ ] T043 [US3] Replace independent order/order-item persistence with the atomic server-owned order RPC path in `src/lib/data/orders.ts`
-- [ ] T044 [US3] Associate profile-complete authenticated checkout with canonical Customer and retain `user_id` compatibility in `src/app/api/orders/route.ts`
-- [ ] T045 [US3] Preserve guest checkout and issue secure guest confirmation cookie grants in `src/app/api/orders/route.ts`
+- [X] T044 [US3] Associate profile-complete authenticated checkout with canonical Customer and retain `user_id` compatibility in `src/app/api/orders/route.ts`
+- [X] T045 [US3] Preserve guest checkout and issue secure guest confirmation cookie grants in `src/app/api/orders/route.ts`
 - [ ] T046 [US3] Update checkout to show authenticated profile-completion guidance while preserving guest form and payment/shipping inputs in `src/app/(storefront)/checkout/page.tsx`
-- [ ] T047 [US3] Implement owned order summary/detail handlers filtered by `customer_id` in `src/app/api/customer/orders/route.ts` and `src/app/api/customer/orders/[orderNumber]/route.ts`
-- [ ] T048 [US3] Create My Orders list with empty/loading/error states in `src/app/(storefront)/account/orders/page.tsx`
-- [ ] T049 [US3] Create owned account order detail page in `src/app/(storefront)/account/orders/[orderNumber]/page.tsx`
-- [ ] T050 [US3] Replace order-number-only checkout-success retrieval with authenticated ownership or valid guest grant verification in `src/app/(storefront)/checkout/success/page.tsx`
+- [X] T047 [US3] Implement owned order summary/detail handlers filtered by `customer_id` in `src/app/api/customer/orders/route.ts` and `src/app/api/customer/orders/[orderNumber]/route.ts`
+- [X] T048 [US3] Create My Orders list with empty/loading/error states in `src/app/(storefront)/account/orders/page.tsx`
+- [X] T049 [US3] Create owned account order detail page in `src/app/(storefront)/account/orders/[orderNumber]/page.tsx`
+- [X] T050 [US3] Replace order-number-only checkout-success retrieval with authenticated ownership or valid guest grant verification in `src/app/(storefront)/checkout/success/page.tsx`
 - [ ] T051 [US3] Verify Kashier return, Bosta/Mylerz input, notification, Meta, analytics, COD, and guest/authenticated checkout compatibility in `tests/integration/customer-account/order-integration-regression.test.ts`
 
 **Checkpoint**: All new authenticated orders have canonical ownership and immutable snapshots;

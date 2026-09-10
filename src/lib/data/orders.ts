@@ -14,6 +14,7 @@ export interface CreateOrderInput {
   payment_method: "card" | "cod";
   discount_code?: string | null;
   user_id?: string | null;
+  customer_id?: string | null;
   items: {
     product_id: string;
     name_en: string;
@@ -188,6 +189,7 @@ export async function createOrder(
     .insert({
       order_number,
       user_id: input.user_id ?? null,
+      customer_id: input.customer_id ?? null,
       customer_name: input.customer_name,
       customer_phone: input.customer_phone,
       alt_phone: input.alt_phone,

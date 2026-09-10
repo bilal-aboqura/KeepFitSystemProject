@@ -1,0 +1,4 @@
+import { notFound } from "next/navigation";
+import { getCurrentCustomer } from "@/lib/customers/session";
+import { getCustomerOrder } from "@/lib/customers/queries";
+export default async function AccountOrderPage({ params }: { params: Promise<{ orderNumber: string }> }) { const customer = await getCurrentCustomer(); const order = customer ? await getCustomerOrder(customer.id, (await params).orderNumber) : null; if (!order) notFound(); return <section className="glass-elevated p-6"><p className="font-mono text-sm text-fg-dim">{order.order_number}</p><h1 className="mt-2 text-3xl font-bold text-fg">Order details</h1><p className="mt-3 text-fg-muted">{order.fulfillment_status} · {order.payment_status}</p><div className="mt-6 space-y-3">{order.order_items.map((item) => <div key={item.id} className="flex justify-between text-sm"><span>{item.name_en} × {item.quantity}</span><span>EGP {(Number(item.price) * item.quantity).toFixed(2)}</span></div>)}</div></section>; }
