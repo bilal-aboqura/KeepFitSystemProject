@@ -1,0 +1,19 @@
+
+> xeemo-ecom@0.1.0 dev
+> next dev --port 3001
+
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.1.2:3001
+- Environments: .env.local
+✓ Ready in 482ms
+
+ GET / 200 in 2.3s (next.js: 103ms, proxy.ts: 299ms, application-code: 1893ms)
+ GET / 200 in 804ms (next.js: 5ms, proxy.ts: 5ms, application-code: 794ms)
+ GET / 200 in 997ms (next.js: 65ms, proxy.ts: 49ms, application-code: 883ms)
+ GET / 200 in 776ms (next.js: 3ms, proxy.ts: 3ms, application-code: 770ms)
+ GET / 200 in 765ms (next.js: 4ms, proxy.ts: 3ms, application-code: 758ms)
+ GET /cart 200 in 86ms (next.js: 58ms, proxy.ts: 5ms, application-code: 23ms)
+ GET / 200 in 794ms (next.js: 3ms, proxy.ts: 3ms, application-code: 788ms)
+ GET / 200 in 887ms (next.js: 661ms, proxy.ts: 3ms, application-code: 223ms)
+ GET / 200 in 1213ms (next.js: 119ms, proxy.ts: 51ms, application-code: 1043ms)

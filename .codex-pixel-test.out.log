@@ -1,0 +1,28 @@
+
+> xeemo-ecom@0.1.0 dev
+> next dev --port 3002
+
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://localhost:3002
+- Network:       http://26.63.48.56:3002
+- Environments: .env.local, .env
+✓ Ready in 1349ms
+○ Compiling proxy ...
+
+ GET / 200 in 714ms (next.js: 4ms, proxy.ts: 5ms, application-code: 706ms)
+ GET / 200 in 1746ms (next.js: 101ms, proxy.ts: 540ms, application-code: 1104ms)
+ GET / 200 in 1030ms (next.js: 4ms, proxy.ts: 487ms, application-code: 539ms)
+✓ Finished filesystem cache database compaction in 10.5s
+ GET /product/x-vision-car-glass-cleaning-fluid 200 in 924ms (next.js: 422ms, proxy.ts: 4ms, application-code: 498ms)
+ GET /product/x-vision-car-glass-cleaning-fluid 200 in 655ms (next.js: 10ms, proxy.ts: 3ms, application-code: 642ms)
+ GET /cart 200 in 313ms (next.js: 294ms, proxy.ts: 3ms, application-code: 16ms)
+ GET /api/checkout-data 200 in 470ms (next.js: 149ms, proxy.ts: 4ms, application-code: 318ms)
+ GET /api/checkout-data 200 in 251ms (next.js: 4ms, proxy.ts: 3ms, application-code: 244ms)
+ GET /cart 200 in 51ms (next.js: 4ms, proxy.ts: 3ms, application-code: 44ms)
+ GET /api/checkout-data 200 in 295ms (next.js: 3ms, proxy.ts: 3ms, application-code: 289ms)
+✓ Compiled in 21.5s
+✓ Finished filesystem cache database compaction in 12.2s
+✓ Compiled in 97ms
+✓ Compiled in 70ms
+✓ Finished filesystem cache database compaction in 11.5s
+ GET /admin/login?next=%2Fadmin%2Fanalytics 200 in 1204ms (next.js: 573ms, proxy.ts: 3ms, application-code: 627ms)
