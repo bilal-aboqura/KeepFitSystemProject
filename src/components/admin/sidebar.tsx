@@ -16,11 +16,12 @@ import {
   Layers,
   Mailbox,
   MessageSquareText,
+  ClipboardCheck,
 } from "lucide-react";
 import { useLang } from "@/components/language/provider";
 import { cn } from "@/lib/utils";
 
-type NavKey = "dashboard" | "analytics" | "products" | "orders" | "reviews" | "customers" | "newsletter" | "discounts" | "shipping" | "bundles" | "content" | "customize" | "settings";
+type NavKey = "dashboard" | "analytics" | "products" | "orders" | "reviews" | "customers" | "customerTypeRequests" | "newsletter" | "discounts" | "shipping" | "bundles" | "content" | "customize" | "settings";
 
 interface NavItem {
   href: string;
@@ -48,6 +49,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/orders", key: "orders", Icon: ShoppingCart },
       { href: "/admin/reviews", key: "reviews", Icon: MessageSquareText },
       { href: "/admin/customers", key: "customers", Icon: Users },
+      { href: "/admin/customer-type-requests", key: "customerTypeRequests", Icon: ClipboardCheck },
       { href: "/admin/newsletter", key: "newsletter", Icon: Mailbox },
     ],
   },

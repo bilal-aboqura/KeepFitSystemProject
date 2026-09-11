@@ -1,15 +1,21 @@
 import { Users, MapPin, ShoppingBag, TrendingUp } from "lucide-react";
+import Link from "next/link";
 import { adminListCustomers } from "@/lib/data/admin-crud";
 import { getLang } from "@/lib/i18n/server";
 import { formatPrice } from "@/lib/utils";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { AdminSectionCard } from "@/components/admin/section-card";
 import { AdminStatCard } from "@/components/admin/stat-card";
+import { CustomerTypeAssignment } from "@/components/admin/customer-type-assignment";
+import { listCustomerTypes } from "@/lib/customers/customer-types";
 
 export default async function AdminCustomersPage() {
   const lang = await getLang();
   const ar = lang === "ar";
-  const customers = await adminListCustomers();
+  const [customers, customerTypes] = await Promise.all([
+    adminListCustomers(),
+    listCustomerTypes(),
+  ]);
 
   const totalCustomers = customers.length;
   const totalRevenue = customers.reduce((sum, customer) => sum + customer.total_spent, 0);
@@ -48,21 +54,23 @@ export default async function AdminCustomersPage() {
                 <th className="px-5 py-4 sm:px-6">{ar ? "العميل" : "Customer"}</th>
                 <th className="px-5 py-4 sm:px-6">{ar ? "الهاتف" : "Phone"}</th>
                 <th className="px-5 py-4 sm:px-6">{ar ? "الموقع" : "Location"}</th>
+                <th className="px-5 py-4 sm:px-6">{ar ? "نوع العميل" : "Customer type"}</th>
                 <th className="px-5 py-4 sm:px-6">{ar ? "الطلبات" : "Orders"}</th>
                 <th className="px-5 py-4 sm:px-6">{ar ? "الإنفاق" : "Total spent"}</th>
                 <th className="px-5 py-4 sm:px-6">{ar ? "آخر طلب" : "Last order"}</th>
+                <th className="px-5 py-4 sm:px-6">{ar ? "إجراء" : "Action"}</th>
               </tr>
             </thead>
             <tbody>
               {customers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-fg-dim sm:px-6">
+                  <td colSpan={8} className="px-5 py-12 text-center text-fg-dim sm:px-6">
                     {ar ? "لا يوجد عملاء بعد." : "No customers yet."}
                   </td>
                 </tr>
               ) : (
                 customers.map((customer) => (
-                  <tr key={customer.phone} className="border-b border-border/80 transition hover:bg-slate-50">
+                  <tr key={`${customer.is_persistent ? "customer" : "guest"}:${customer.id}`} className="border-b border-border/80 transition hover:bg-slate-50">
                     <td className="px-5 py-4 sm:px-6">
                       <div className="font-medium text-fg">{customer.full_name}</div>
                       {customer.order_count > 1 ? (
@@ -82,12 +90,38 @@ export default async function AdminCustomersPage() {
                         </span>
                       </div>
                     </td>
+                    <td className="px-5 py-4 sm:px-6">
+                      {customer.effective_type ? (
+                        <div>
+                          <span className="pill pill-info text-xs">
+                            {ar ? customer.effective_type.name_ar : customer.effective_type.name_en}
+                          </span>
+                          {customer.pending_request_id ? (
+                            <Link href={`/admin/customer-type-requests/${customer.pending_request_id}`} className="pill pill-warning ms-2 text-[10px] hover:underline">
+                              {ar ? "طلب معلق" : "Pending request"}
+                            </Link>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-fg-dim">{ar ? "طلب زائر" : "Guest checkout"}</span>
+                      )}
+                    </td>
                     <td className="px-5 py-4 text-fg sm:px-6">{customer.order_count}</td>
                     <td className="px-5 py-4 font-semibold text-brand sm:px-6">
                       {formatPrice(customer.total_spent, lang)}
                     </td>
                     <td className="px-5 py-4 text-xs text-fg-dim sm:px-6">
                       {new Date(customer.last_order_at).toLocaleDateString(ar ? "ar-EG" : "en-GB")}
+                    </td>
+                    <td className="px-5 py-4 sm:px-6">
+                      {customer.is_persistent && customer.effective_type ? (
+                        <CustomerTypeAssignment
+                          customerId={customer.id}
+                          currentType={customer.effective_type}
+                          types={customerTypes}
+                          hasPendingRequest={Boolean(customer.pending_request_id)}
+                        />
+                      ) : null}
                     </td>
                   </tr>
                 ))

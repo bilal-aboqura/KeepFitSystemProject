@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "migrate:feature-001": "node --env-file=.env.local scripts/migrate-feature-001.mjs"
+    "test:customer-db": "node --env-file=.env.local node_modules/vitest/vitest.mjs run tests/integration/customer-type-approval.test.ts",
+    "migrate:feature-001": "node --env-file=.env.local scripts/migrate-feature-001.mjs",
+    "migrate:feature-002": "node --env-file=.env.local scripts/migrate-feature-002.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
