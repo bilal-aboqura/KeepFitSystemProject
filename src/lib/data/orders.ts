@@ -1,3 +1,5 @@
+import "server-only";
+import { newConfirmationGrant } from "@/lib/customers/grants";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 import { getCheckoutSettings } from "@/lib/data/catalog";
 import { calcItemsSubtotal, calcOnlinePaymentDiscount } from "@/lib/pricing";
@@ -26,6 +28,7 @@ export interface CreateOrderInput {
 }
 
 export interface CreatedOrder {
+  confirmationGrant?: ReturnType<typeof newConfirmationGrant>;
   id: string;
   order_number: string;
   grand_total: number;
@@ -172,60 +175,22 @@ export async function createOrder(
     itemsTotal + shippingCost - totalDiscount,
   );
 
-  // ensure a unique order number (retry on rare collision)
-  let order_number = generateOrderNumber();
+  const grant = input.customer_id ? undefined : newConfirmationGrant();
   for (let attempt = 0; attempt < 3; attempt++) {
-    const { data: exists } = await sb
-      .from("orders")
-      .select("id")
-      .eq("order_number", order_number)
-      .maybeSingle();
-    if (!exists) break;
-    order_number = generateOrderNumber();
+    const { data, error } = await sb.rpc("customer_create_order", {
+      p_order: {
+        order_number: generateOrderNumber(), user_id: input.user_id ?? null, customer_id: input.customer_id ?? null,
+        customer_name: input.customer_name, customer_phone: input.customer_phone, alt_phone: input.alt_phone,
+        governorate: input.governorate, city: input.city, address: input.address, notes: input.notes ?? null,
+        items_total: itemsTotal, shipping_cost: shippingCost, discount: totalDiscount,
+        discount_code: codeDiscount?.code ?? null, grand_total: grandTotal, payment_method: input.payment_method,
+      },
+      p_items: input.items, p_grant_hash: grant?.hash ?? null,
+    });
+    if (!error && data) return { ...data, confirmationGrant: grant } as CreatedOrder;
+    if (error?.code !== "23505") return null;
   }
-
-  const { data: order, error } = await sb
-    .from("orders")
-    .insert({
-      order_number,
-      user_id: input.user_id ?? null,
-      customer_id: input.customer_id ?? null,
-      customer_name: input.customer_name,
-      customer_phone: input.customer_phone,
-      alt_phone: input.alt_phone,
-      governorate: input.governorate,
-      city: input.city,
-      address: input.address,
-      notes: input.notes ?? null,
-      items_total: itemsTotal,
-      shipping_cost: shippingCost,
-      discount: totalDiscount,
-      discount_code: codeDiscount?.code ?? null,
-      grand_total: grandTotal,
-      payment_method: input.payment_method,
-      payment_status: "pending",
-      fulfillment_status: "pending",
-    })
-    .select("id, order_number, grand_total, payment_method")
-    .single();
-  if (error || !order) {
-    console.error("createOrder insert failed:", error?.message);
-    return null;
-  }
-
-  const orderItems = input.items.map((i) => ({
-    order_id: order.id,
-    product_id: i.product_id,
-    name_en: i.name_en,
-    name_ar: i.name_ar ?? null,
-    price: Number(i.price),
-    quantity: i.quantity,
-    image: i.image ?? null,
-  }));
-  const { error: itemsErr } = await sb.from("order_items").insert(orderItems);
-  if (itemsErr) console.error("order_items insert failed:", itemsErr.message);
-
-  return order;
+  return null;
 }
 
 export interface OrderForConfirmation {

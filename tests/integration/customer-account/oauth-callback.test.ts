@@ -1,0 +1,14 @@
+import { beforeEach,it,expect,vi } from "vitest";
+import { NextRequest } from "next/server";
+import { safeReturnPath } from "@/lib/customers/return-path";
+const mock=vi.hoisted(()=>({exchange:vi.fn(),resolve:vi.fn()}));
+vi.mock("@/lib/supabase/server",()=>({getSupabaseServerClient:async()=>({auth:{exchangeCodeForSession:mock.exchange}})}));
+vi.mock("@/lib/customers/identity",()=>({resolveCustomerForUser:mock.resolve,isCustomerProfileComplete:(c:{phone?:string})=>Boolean(c.phone)}));
+import { GET } from "@/app/auth/callback/route";
+beforeEach(()=>{vi.clearAllMocks();mock.exchange.mockResolvedValue({data:{user:{id:"u"}},error:null});mock.resolve.mockResolvedValue({phone:"01012345678"});});
+it.each(["https://evil.example","//evil.example","/\\evil.example","/%5cevil.example","/%2fexample.com","/admin","/api/orders","/auth/callback","/%00evil"])("rejects unsafe return %s",path=>expect(safeReturnPath(path)).toBe("/account"));
+it("preserves a checkout destination",()=>expect(safeReturnPath("/checkout?x=1")).toBe("/checkout?x=1"));
+it("redirects cancellation without exchange",async()=>{const r=await GET(new NextRequest("http://localhost/auth/callback?error=access_denied"));expect(r.headers.get("location")).toContain("/sign-in?auth=failed");expect(mock.exchange).not.toHaveBeenCalled();});
+it("resolves identity then redirects returning customer",async()=>{const r=await GET(new NextRequest("http://localhost/auth/callback?code=ok&next=%2Fcheckout"));expect(r.headers.get("location")).toBe("http://localhost/checkout");expect(mock.resolve).toHaveBeenCalledWith({id:"u"});});
+it("preserves destination through profile completion",async()=>{mock.resolve.mockResolvedValue({});const r=await GET(new NextRequest("http://localhost/auth/callback?code=ok&next=%2Fcheckout"));expect(r.headers.get("location")).toContain("/account/complete-profile?next=%2Fcheckout");});
+it("returns generic failure on resolution error",async()=>{mock.resolve.mockRejectedValue(new Error("private database details"));const r=await GET(new NextRequest("http://localhost/auth/callback?code=ok"));expect(r.headers.get("location")).toContain("auth=failed");});

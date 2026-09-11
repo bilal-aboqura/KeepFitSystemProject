@@ -1,0 +1,11 @@
+import { beforeEach,it,expect,vi } from "vitest";
+const mock=vi.hoisted(()=>({current:vi.fn(),rpc:vi.fn()}));
+vi.mock("@/lib/customers/session",()=>({getCurrentCustomer:mock.current}));
+vi.mock("@/lib/supabase/server",()=>({getSupabaseServiceClient:()=>({rpc:mock.rpc})}));
+import { GET,PATCH } from "@/app/api/customer/me/route";
+const customer={id:"a",auth_user_id:"u",full_name:"Test Name",phone:"01012345678",email:"test@example.invalid"};
+beforeEach(()=>{vi.clearAllMocks();mock.current.mockResolvedValue(customer);mock.rpc.mockResolvedValue({data:customer,error:null});});
+it("requires authentication",async()=>{mock.current.mockResolvedValue(null);expect((await GET()).status).toBe(401);});
+it("omits auth internals from the profile DTO",async()=>{const r=await GET();expect((await r.json()).customer.auth_user_id).toBeUndefined();});
+it.each(["is_admin","customer_id","auth_user_id","email","type"])("rejects privileged %s",async key=>{const r=await PATCH(new Request("http://local/api/customer/me",{method:"PATCH",body:JSON.stringify({full_name:"Test Name",phone:"01012345678",[key]:"b"})}));expect(r.status).toBe(422);expect(mock.rpc).not.toHaveBeenCalled();});
+it("updates only the session customer",async()=>{await PATCH(new Request("http://local/api/customer/me",{method:"PATCH",body:JSON.stringify({full_name:"Test Name",phone:"01012345678"})}));expect(mock.rpc).toHaveBeenCalledWith("customer_profile_update",{p_customer_id:"a",p_name:"Test Name",p_phone:"01012345678"});});

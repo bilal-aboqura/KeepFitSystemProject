@@ -3,8 +3,32 @@ import { getSupabaseServiceClient } from "@/lib/supabase/server";
 import { addressSchema } from "./validation";
 import type { CustomerAddress } from "./types";
 
-export async function listCustomerAddresses(customerId: string) { const sb = getSupabaseServiceClient(); if (!sb) return []; const { data } = await sb.from("addresses").select("id, customer_id, full_name, phone, governorate, city, address, is_default").eq("customer_id", customerId).order("is_default", { ascending: false }); return (data ?? []) as CustomerAddress[]; }
-export async function createCustomerAddress(customerId: string, input: unknown) { const parsed = addressSchema.parse(input); const sb = getSupabaseServiceClient(); if (!sb) return null; const existing = await listCustomerAddresses(customerId); const is_default = parsed.is_default ?? existing.length === 0; if (is_default) await sb.from("addresses").update({ is_default: false }).eq("customer_id", customerId); const { data, error } = await sb.from("addresses").insert({ ...parsed, is_default, customer_id: customerId }).select().single(); if (error) throw error; return data; }
-export async function updateCustomerAddress(customerId: string, id: string, input: unknown) { const parsed = addressSchema.partial().parse(input); const sb = getSupabaseServiceClient(); if (!sb) return null; if (parsed.is_default) await sb.from("addresses").update({ is_default: false }).eq("customer_id", customerId); const { data, error } = await sb.from("addresses").update(parsed).eq("id", id).eq("customer_id", customerId).select().maybeSingle(); if (error) throw error; return data; }
-export async function deleteCustomerAddress(customerId: string, id: string) { const sb = getSupabaseServiceClient(); if (!sb) return false; const { data: old } = await sb.from("addresses").select("is_default").eq("id", id).eq("customer_id", customerId).maybeSingle(); const { error } = await sb.from("addresses").delete().eq("id", id).eq("customer_id", customerId); if (error || !old) return false; if (old.is_default) { const { data: next } = await sb.from("addresses").select("id").eq("customer_id", customerId).order("created_at").limit(1).maybeSingle(); if (next) await sb.from("addresses").update({ is_default: true }).eq("id", next.id); } return true; }
-export async function setCustomerDefaultAddress(customerId: string, id: string) { const sb = getSupabaseServiceClient(); if (!sb) return null; const { data: found } = await sb.from("addresses").select("id").eq("id", id).eq("customer_id", customerId).maybeSingle(); if (!found) return null; await sb.from("addresses").update({ is_default: false }).eq("customer_id", customerId); const { data } = await sb.from("addresses").update({ is_default: true }).eq("id", id).select().single(); return data; }
+export async function listCustomerAddresses(customerId: string): Promise<CustomerAddress[]> {
+  const sb = getSupabaseServiceClient();
+  if (!sb) return [];
+  const { data, error } = await sb.from("addresses").select("id, customer_id, full_name, phone, governorate, city, address, is_default")
+    .eq("customer_id", customerId).order("is_default", { ascending: false }).order("created_at");
+  if (error) throw error;
+  return data ?? [];
+}
+async function command(customerId: string, action: string, id: string | null, data = {}) {
+  const sb = getSupabaseServiceClient();
+  if (!sb) throw new Error("Customer service unavailable");
+  const { data: result, error } = await sb.rpc("customer_address_command", {
+    p_customer_id: customerId, p_action: action, p_id: id, p_data: data,
+  });
+  if (error) throw error;
+  return result as CustomerAddress | null;
+}
+export function createCustomerAddress(customerId: string, input: unknown) {
+  return command(customerId, "create", null, addressSchema.parse(input));
+}
+export function updateCustomerAddress(customerId: string, id: string, input: unknown) {
+  return command(customerId, "update", id, addressSchema.partial().parse(input));
+}
+export async function deleteCustomerAddress(customerId: string, id: string) {
+  return Boolean(await command(customerId, "delete", id));
+}
+export function setCustomerDefaultAddress(customerId: string, id: string) {
+  return command(customerId, "default", id);
+}

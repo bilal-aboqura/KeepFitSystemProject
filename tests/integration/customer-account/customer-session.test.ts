@@ -1,0 +1,12 @@
+import { beforeEach,it,expect,vi } from "vitest";
+const mock=vi.hoisted(()=>({getUser:vi.fn(),signOut:vi.fn(),resolve:vi.fn()}));
+vi.mock("@/lib/supabase/server",()=>({getSupabaseServerClient:async()=>({auth:mock,from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:null,error:null})})})})})}));
+vi.mock("@/lib/customers/identity",()=>({resolveCustomerForUser:mock.resolve}));
+vi.mock("next/navigation",()=>({redirect:(path:string)=>{throw new Error("REDIRECT:"+path);}}));
+import { getCurrentCustomer,requireCustomerPage } from "@/lib/customers/session";
+import { POST } from "@/app/api/customer/auth/logout/route";
+beforeEach(()=>{vi.clearAllMocks();mock.getUser.mockResolvedValue({data:{user:null},error:null});mock.signOut.mockResolvedValue({error:null});});
+it("redirects anonymous page access",async()=>{await expect(requireCustomerPage()).rejects.toThrow("REDIRECT:/sign-in");});
+it("uses verified auth user only",async()=>{mock.getUser.mockResolvedValue({data:{user:{id:"a"}},error:null});mock.resolve.mockResolvedValue({id:"c"});expect(await getCurrentCustomer()).toEqual({id:"c"});expect(mock.resolve).toHaveBeenCalledWith({id:"a"});});
+it("does not downgrade auth outages to guest checkout",async()=>{mock.getUser.mockResolvedValue({data:{user:null},error:{status:503}});await expect(getCurrentCustomer()).rejects.toThrow("Authentication unavailable");});
+it("clears local session on logout",async()=>{expect((await POST()).status).toBe(200);expect(mock.signOut).toHaveBeenCalledWith({scope:"local"});expect(await getCurrentCustomer()).toBeNull();});

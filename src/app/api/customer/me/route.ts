@@ -1,7 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { getCurrentCustomer } from "@/lib/customers/session";
+import { NextResponse } from "next/server";
+import { customerHandler } from "@/lib/customers/http";
 import { isCustomerProfileComplete } from "@/lib/customers/identity";
-import { updateCustomerProfile } from "@/lib/customers/profile";
-import { z } from "zod";
-export async function GET() { const customer = await getCurrentCustomer(); return customer ? NextResponse.json({ customer, complete: isCustomerProfileComplete(customer) }) : NextResponse.json({ error: "Unauthorized" }, { status: 401 }); }
-export async function PATCH(request: NextRequest) { const customer = await getCurrentCustomer(); if (!customer) return NextResponse.json({ error: "Unauthorized" }, { status: 401 }); try { return NextResponse.json({ customer: await updateCustomerProfile(customer, await request.json()) }); } catch (error) { return NextResponse.json({ error: error instanceof z.ZodError ? "Validation failed" : "Could not update profile." }, { status: 422 }); } }
+import { customerDTO,updateCustomerProfile } from "@/lib/customers/profile";
+export function GET(){return customerHandler(async c=>NextResponse.json({customer:customerDTO(c),complete:isCustomerProfileComplete(c)}));}
+export function PATCH(r:Request){return customerHandler(async c=>NextResponse.json({customer:customerDTO(await updateCustomerProfile(c,await r.json()))}));}

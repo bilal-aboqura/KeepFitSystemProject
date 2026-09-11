@@ -1,3 +1,11 @@
 import Link from "next/link";
-import { getCurrentCustomer } from "@/lib/customers/session";
-export default async function AccountPage() { const customer = await getCurrentCustomer(); return <section className="glass-elevated p-6"><p className="text-sm text-fg-dim">Your account</p><h1 className="mt-2 text-3xl font-bold text-fg">{customer?.full_name || "Complete your profile"}</h1><p className="mt-3 text-fg-muted">Manage your profile, delivery addresses, and orders.</p><Link href="/account/complete-profile" className="btn btn-primary mt-6">Complete profile</Link></section>; }
+import { requireCustomerPage } from "@/lib/customers/session";
+import { isCustomerProfileComplete } from "@/lib/customers/identity";
+import { getLang } from "@/lib/i18n/server";
+import { ui } from "@/lib/i18n/translations";
+export default async function AccountPage() {
+  const c=await requireCustomerPage();const t=ui[await getLang()].account;
+  return <section className="glass-elevated p-6"><h1 className="break-words text-3xl font-bold">{c.full_name||t.title}</h1><p className="mt-3">{t.accountHint}</p>
+  {!isCustomerProfileComplete(c)&&<div className="mt-4 rounded-xl border border-border p-4"><p>{t.completionHint}</p><Link className="btn btn-primary mt-3" href="/account/complete-profile">{t.complete}</Link></div>}
+  <div className="mt-6 flex flex-wrap gap-3">{[["profile",t.profile],["addresses",t.addresses],["orders",t.orders]].map(([path,label])=><Link key={path} href={"/account/"+path} className="btn btn-secondary min-h-11">{label}</Link>)}</div></section>;
+}

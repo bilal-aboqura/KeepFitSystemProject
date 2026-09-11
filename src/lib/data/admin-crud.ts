@@ -119,6 +119,8 @@ export interface AdminCustomer {
   total_spent: number;
   last_order_at: string;
   first_order_at: string;
+  auth_user_id?: string | null;
+  kind?: "customer" | "guest";
 }
 
 /**
@@ -131,7 +133,7 @@ export async function adminListCustomers(): Promise<AdminCustomer[]> {
 
   const { data: orders, error } = await sb
     .from("orders")
-    .select("id, customer_name, customer_phone, governorate, city, grand_total, payment_status, created_at")
+    .select("id, customer_id, customer_name, customer_phone, governorate, city, grand_total, payment_status, created_at")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -140,10 +142,18 @@ export async function adminListCustomers(): Promise<AdminCustomer[]> {
   }
 
   const customerMap = new Map<string, AdminCustomer>();
+  const { data: registered, error: customerError } = await sb.from("customers").select("id,auth_user_id,full_name,email,phone,created_at");
+  if (customerError) throw customerError;
+  for (const c of registered ?? []) customerMap.set(c.id, {
+    id: c.id, full_name: c.full_name ?? "", phone: c.phone ?? "", email: c.email,
+    auth_user_id: c.auth_user_id, kind: "customer", governorate: "", city: "",
+    order_count: 0, total_spent: 0, last_order_at: c.created_at, first_order_at: c.created_at,
+  });
 
   for (const o of orders ?? []) {
     const phone = o.customer_phone;
-    const existing = customerMap.get(phone);
+    const key = o.customer_id ?? ("guest:" + o.id);
+    const existing = customerMap.get(key);
 
     if (existing) {
       existing.order_count += 1;
@@ -152,7 +162,6 @@ export async function adminListCustomers(): Promise<AdminCustomer[]> {
       }
       if (new Date(o.created_at) > new Date(existing.last_order_at)) {
         existing.last_order_at = o.created_at;
-        existing.full_name = o.customer_name;
         existing.governorate = o.governorate;
         existing.city = o.city;
       }
@@ -160,8 +169,9 @@ export async function adminListCustomers(): Promise<AdminCustomer[]> {
         existing.first_order_at = o.created_at;
       }
     } else {
-      customerMap.set(phone, {
+      customerMap.set(key, {
         id: o.id,
+        kind: "guest",
         full_name: o.customer_name,
         phone,
         email: null,

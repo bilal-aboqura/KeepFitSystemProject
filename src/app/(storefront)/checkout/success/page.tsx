@@ -1,7 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { getOrderByNumber } from "@/lib/data/orders";
 import { buildOwnerWhatsAppUrl } from "@/lib/notifications";
 import { getLang } from "@/lib/i18n/server";
 import { formatPrice } from "@/lib/utils";
@@ -9,18 +8,16 @@ import { CheckCircle, Clock, MessageCircle, ArrowLeft, Package } from "lucide-re
 import { MetaPurchase } from "@/components/storefront/meta-purchase";
 import { cookies } from "next/headers";
 import { getCurrentCustomer } from "@/lib/customers/session";
-import { confirmationGrantCookieName, getCustomerOrder, hasGuestConfirmationGrant } from "@/lib/customers/queries";
+import { confirmationGrantCookieName, getConfirmationOrder } from "@/lib/customers/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function CheckoutSuccessPage({ searchParams }: { searchParams: Promise<{ order?: string }> }) {
   const sp = await searchParams;
   if (!sp.order) notFound();
-  const [order, lang, customer, cookieStore] = await Promise.all([getOrderByNumber(sp.order), getLang(), getCurrentCustomer(), cookies()]);
+  const [lang, customer, cookieStore] = await Promise.all([getLang(), getCurrentCustomer(), cookies()]);
+  const order = await getConfirmationOrder(sp.order, customer?.id, cookieStore.get(confirmationGrantCookieName(sp.order))?.value);
   if (!order) notFound();
-  const owned = customer?.id ? Boolean(await getCustomerOrder(customer.id, sp.order)) : false;
-  const granted = await hasGuestConfirmationGrant(order.id, cookieStore.get(confirmationGrantCookieName(sp.order))?.value);
-  if (!owned && !granted) notFound();
   const ar = lang === "ar";
 
   const whatsapp = buildOwnerWhatsAppUrl(order);

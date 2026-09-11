@@ -1,13 +1,19 @@
 import { z } from "zod";
 
 export function normalizeEgyptianPhone(value: string) {
-  const digits = value
+  const digits = normalizeContactDigits(value);
+  return digits.replace(/^0020/, "0").replace(/^20(?=1)/, "0");
+}
+
+export function normalizeContactDigits(value: string) {
+  return value
     .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632))
     .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 1776))
     .replace(/\D/g, "");
-  const local = digits.replace(/^0020/, "0").replace(/^20(?=1)/, "0");
-  return local;
 }
+
+export const checkoutPhoneSchema = z.string().transform(normalizeContactDigits)
+  .pipe(z.string().regex(/^\d{6,20}$/, "Phone number must contain 6 to 20 digits."));
 
 export const egyptianPhoneSchema = z
   .string()

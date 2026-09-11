@@ -38,7 +38,7 @@ export async function proxy(request: NextRequest) {
     const hasSession = request.cookies.getAll().some((c) => c.name.startsWith("sb-"));
     if (!hasSession) {
       const url = request.nextUrl.clone();
-      url.pathname = "/";
+      url.pathname = "/sign-in";
       url.searchParams.set("auth", "required");
       return NextResponse.redirect(url);
     }

@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeContactDigits } from "@/lib/customers/validation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -40,13 +41,7 @@ interface BumpProduct {
 
 const PHONE_PATTERN = /^\d{6,20}$/;
 
-function normalizePhone(value: string) {
-  return value
-    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632))
-    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 1776))
-    .replace(/\D/g, "")
-    .slice(0, 20);
-}
+function normalizePhone(value: string) { return normalizeContactDigits(value).slice(0, 20); }
 
 export default function CheckoutPage() {
   const { t, lang } = useLang();
@@ -151,6 +146,7 @@ export default function CheckoutPage() {
       const payload = { ...form, items: orderItems };
       const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await res.json();
+      if (!res.ok && data.redirect === "/account/complete-profile") { router.push("/account/complete-profile?next=%2Fcheckout"); return; }
       if (!res.ok) throw new Error(data.error || "Order failed");
       if (form.payment_method === "card" && data.redirect?.startsWith("http")) { clearCart(); window.location.href = data.redirect; return; }
       clearCart();

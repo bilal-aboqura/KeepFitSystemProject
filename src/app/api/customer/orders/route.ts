@@ -1,4 +1,4 @@
 import { NextResponse } from "next/server";
-import { getCurrentCustomer } from "@/lib/customers/session";
+import { customerHandler } from "@/lib/customers/http";
 import { listCustomerOrders } from "@/lib/customers/queries";
-export async function GET() { const customer = await getCurrentCustomer(); return customer ? NextResponse.json({ orders: await listCustomerOrders(customer.id) }) : NextResponse.json({ error: "Unauthorized" }, { status: 401 }); }
+export function GET(r:Request){return customerHandler(async c=>NextResponse.json({orders:await listCustomerOrders(c.id,Number(new URL(r.url).searchParams.get("page")||1))}));}

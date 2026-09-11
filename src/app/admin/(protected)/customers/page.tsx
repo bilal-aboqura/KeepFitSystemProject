@@ -22,8 +22,8 @@ export default async function AdminCustomersPage() {
         title={ar ? "العملاء" : "Customers"}
         description={
           ar
-            ? "اعرف أكثر العملاء تكراراً وأماكن الطلبات والإنفاق الكلي بسرعة."
-            : "See repeat buyers, order locations, and total spend at a glance."
+            ? "حسابات العملاء الدائمة وبيانات طلبات الزوار، دون دمج بالهاتف."
+            : "Persistent customer accounts and separate guest order snapshots."
         }
       />
 
@@ -37,7 +37,7 @@ export default async function AdminCustomersPage() {
         className="mt-6"
         title={ar ? "سجل العملاء" : "Customer list"}
         description={
-          ar ? "كل العملاء الذين طلبوا من المتجر، بما فيهم الدفع عند الاستلام." : "All customers who placed orders, including COD guests."
+          ar ? "يشمل الحسابات بدون طلبات. كل طلب زائر مستقل." : "Includes accounts without orders. Each guest order remains separate."
         }
         contentClassName="p-0"
       >
@@ -62,9 +62,14 @@ export default async function AdminCustomersPage() {
                 </tr>
               ) : (
                 customers.map((customer) => (
-                  <tr key={customer.phone} className="border-b border-border/80 transition hover:bg-slate-50">
+                  <tr key={customer.id} className="border-b border-border/80 transition hover:bg-slate-50">
                     <td className="px-5 py-4 sm:px-6">
                       <div className="font-medium text-fg">{customer.full_name}</div>
+                      <p className="mt-1 text-xs">{customer.kind === "customer" ? (ar ? "حساب عميل" : "Customer record") : (ar ? "بيانات طلب زائر" : "Guest order snapshot")}</p>
+                      <p className="mt-1 font-mono text-xs">{customer.id}</p>
+                      <p className="mt-1 text-xs">{customer.email ?? "—"}</p>
+                      <p className="mt-1 text-xs">{customer.auth_user_id ? (ar ? "مرتبط بحساب" : "Account linked") : (ar ? "بدون حساب" : "No account")}</p>
+                      <p className="mt-1 text-xs">{ar ? "تاريخ الإنشاء: " : "Created: "}{new Date(customer.first_order_at).toLocaleDateString(ar ? "ar-EG" : "en-GB")}</p>
                       {customer.order_count > 1 ? (
                         <span className="pill pill-warning mt-1 text-[10px]">
                           {ar ? "عميل متكرر" : "Repeat"}

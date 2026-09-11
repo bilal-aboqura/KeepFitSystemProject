@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
-import { getCurrentCustomer } from "@/lib/customers/session";
+import { customerHandler } from "@/lib/customers/http";
 import { getCustomerOrder } from "@/lib/customers/queries";
-export async function GET(_: Request, { params }: { params: Promise<{ orderNumber: string }> }) { const customer = await getCurrentCustomer(); if (!customer) return NextResponse.json({ error: "Unauthorized" }, { status: 401 }); const order = await getCustomerOrder(customer.id, (await params).orderNumber); return order ? NextResponse.json({ order }) : NextResponse.json({ error: "Not found" }, { status: 404 }); }
+export function GET(_:Request,{params}:{params:Promise<{orderNumber:string}>}){return customerHandler(async c=>{
+  const order=await getCustomerOrder(c.id,(await params).orderNumber);
+  return order?NextResponse.json({order}):NextResponse.json({error:"Not found"},{status:404});
+});}

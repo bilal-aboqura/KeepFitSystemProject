@@ -1,5 +1,12 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { getCurrentCustomer } from "@/lib/customers/session";
-import { deleteCustomerAddress, updateCustomerAddress } from "@/lib/customers/addresses";
-export async function PATCH(r: NextRequest, { params }: { params: Promise<{ id: string }> }) { const c = await getCurrentCustomer(); if (!c) return NextResponse.json({ error: "Unauthorized" }, { status: 401 }); try { const a = await updateCustomerAddress(c.id, (await params).id, await r.json()); return a ? NextResponse.json({ address: a }) : NextResponse.json({ error: "Not found" }, { status: 404 }); } catch { return NextResponse.json({ error: "Validation failed" }, { status: 422 }); } }
-export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) { const c = await getCurrentCustomer(); if (!c) return NextResponse.json({ error: "Unauthorized" }, { status: 401 }); return (await deleteCustomerAddress(c.id, (await params).id)) ? new NextResponse(null, { status: 204 }) : NextResponse.json({ error: "Not found" }, { status: 404 }); }
+import { NextResponse } from "next/server";
+import { customerHandler,customerIdSchema } from "@/lib/customers/http";
+import { deleteCustomerAddress,updateCustomerAddress } from "@/lib/customers/addresses";
+type Context={params:Promise<{id:string}>};
+export function PATCH(r:Request,{params}:Context){return customerHandler(async c=>{
+  const id=customerIdSchema.parse((await params).id);const address=await updateCustomerAddress(c.id,id,await r.json());
+  return address?NextResponse.json({address}):NextResponse.json({error:"Not found"},{status:404});
+});}
+export function DELETE(_:Request,{params}:Context){return customerHandler(async c=>{
+  const id=customerIdSchema.parse((await params).id);
+  return await deleteCustomerAddress(c.id,id)?new NextResponse(null,{status:204}):NextResponse.json({error:"Not found"},{status:404});
+});}

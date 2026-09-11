@@ -1,3 +1,4 @@
+import { checkoutPhoneSchema } from "@/lib/customers/validation";
 import { after, NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createOrder, getOrderByNumber } from "@/lib/data/orders";
@@ -6,7 +7,7 @@ import { sendNewOrderNotifications } from "@/lib/notifications";
 import { sendPurchaseOrderToMeta } from "@/lib/meta-conversions";
 import { getCurrentCustomer } from "@/lib/customers/session";
 import { isCustomerProfileComplete } from "@/lib/customers/identity";
-import { issueGuestConfirmationGrant } from "@/lib/customers/queries";
+import { confirmationGrantCookieName, confirmationCookieOptions } from "@/lib/customers/grants";
 
 const ItemSchema = z.object({
   product_id: z.string().uuid(),
@@ -17,18 +18,11 @@ const ItemSchema = z.object({
   image: z.string().optional(),
 });
 
-const PhoneSchema = z
-  .string()
-  .transform((value) => value
-    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632))
-    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 1776))
-    .replace(/\D/g, ""))
-  .pipe(z.string().regex(/^\d{6,20}$/, "Phone number must contain 6 to 20 digits."));
 
 const BodySchema = z.object({
   customer_name: z.string().min(2).max(120),
-  customer_phone: PhoneSchema,
-  alt_phone: PhoneSchema,
+  customer_phone: checkoutPhoneSchema,
+  alt_phone: checkoutPhoneSchema,
   governorate: z.string().min(1),
   city: z.string().min(1),
   address: z.string().min(3).max(500),
@@ -42,6 +36,14 @@ const BodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  try {
+    return await placeOrder(request);
+  } catch {
+    return NextResponse.json({ error: "Checkout is temporarily unavailable. Please try again." }, { status: 503 });
+  }
+}
+
+async function placeOrder(request: NextRequest) {
   let json: unknown;
   try {
     json = await request.json();
@@ -99,7 +101,7 @@ export async function POST(request: NextRequest) {
       order_number: order.order_number,
       redirect: `/checkout/success?order=${order.order_number}`,
     });
-    if (!customer) { const grant = await issueGuestConfirmationGrant(order.id, order.order_number); if (grant) response.cookies.set(grant.name, grant.value, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", expires: new Date(grant.expiresAt), path: "/checkout" }); }
+    if (order.confirmationGrant) response.cookies.set(confirmationGrantCookieName(order.order_number), order.confirmationGrant.secret, { ...confirmationCookieOptions, expires: order.confirmationGrant.expiresAt });
     return response;
   }
 
@@ -118,7 +120,7 @@ export async function POST(request: NextRequest) {
       order_number: order.order_number,
       redirect: checkoutUrl,
     });
-    if (!customer) { const grant = await issueGuestConfirmationGrant(order.id, order.order_number); if (grant) response.cookies.set(grant.name, grant.value, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", expires: new Date(grant.expiresAt), path: "/checkout" }); }
+    if (order.confirmationGrant) response.cookies.set(confirmationGrantCookieName(order.order_number), order.confirmationGrant.secret, { ...confirmationCookieOptions, expires: order.confirmationGrant.expiresAt });
     return response;
   } catch (e) {
     console.error("Kashier checkout URL failed:", e);

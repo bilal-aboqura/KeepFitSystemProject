@@ -27,14 +27,14 @@ const PRODUCT_LINKS = [
   { href: "/category/home-care", key: "homecare" as const, Icon: House },
 ];
 
-export function Navbar() {
+export function Navbar({ authenticated = false }: { authenticated?: boolean }) {
   const { t } = useLang();
   const [open, setOpen] = useState(false);
   const [productsOpen, setProductsOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-ink/70 backdrop-blur-xl">
-      <nav className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-6 px-5">
+      <nav className="mx-auto flex min-h-[72px] max-w-7xl flex-wrap items-center justify-between gap-2 px-5 py-2">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3">
           <Image 
@@ -109,6 +109,7 @@ export function Navbar() {
         {/* Actions */}
         <div className="flex items-center gap-2">
           <LanguageToggle />
+          <Link href={authenticated ? "/account" : "/sign-in"} className="flex min-h-11 items-center rounded-xl border border-border px-2 text-sm">{t.account.title}</Link>
 
           <a
             href="https://wa.me/201150301033"

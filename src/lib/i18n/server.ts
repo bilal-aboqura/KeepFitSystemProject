@@ -6,7 +6,7 @@ import { ui } from "@/lib/i18n/translations";
 export async function getLang(): Promise<Lang> {
   const store = await cookies();
   const value = store.get("lang")?.value;
-  return value === "ar" ? "ar" : "en";
+  return value === "en" ? "en" : "ar";
 }
 
 /** Server-side access to the UI dictionary for the current request's locale. */

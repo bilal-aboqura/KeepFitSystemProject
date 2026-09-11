@@ -1,26 +1,15 @@
 import "server-only";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
+import { profileSchema } from "./validation";
 import type { Customer } from "./types";
-
 export function isCustomerProfileComplete(customer: Pick<Customer, "full_name" | "phone">) {
-  return Boolean(customer.full_name?.trim() && customer.phone && /^01[0125]\d{8}$/.test(customer.phone));
+  return profileSchema.safeParse({ full_name: customer.full_name, phone: customer.phone }).success;
 }
-
-export async function resolveCustomerForUser(user: User): Promise<Customer | null> {
+export async function resolveCustomerForUser(user: User): Promise<Customer> {
   const sb = getSupabaseServiceClient();
-  if (!sb) return null;
-  const { data: existing } = await sb.from("customers").select("*").eq("auth_user_id", user.id).maybeSingle();
-  if (existing) return existing as Customer;
-  const metadata = user.user_metadata ?? {};
-  const { data, error } = await sb.from("customers").insert({
-    auth_user_id: user.id,
-    email: user.email ?? null,
-    full_name: typeof metadata.full_name === "string" ? metadata.full_name : typeof metadata.name === "string" ? metadata.name : null,
-  }).select("*").single();
-  if (error) {
-    const { data: raced } = await sb.from("customers").select("*").eq("auth_user_id", user.id).maybeSingle();
-    return (raced as Customer | null) ?? null;
-  }
+  if (!sb) throw new Error("Customer service unavailable");
+  const { data, error } = await sb.rpc("customer_resolve", { p_user_id: user.id });
+  if (error || !data) throw new Error("Could not resolve customer");
   return data as Customer;
 }

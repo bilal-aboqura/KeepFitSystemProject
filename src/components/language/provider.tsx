@@ -28,7 +28,7 @@ const CHANGE_EVENT = "xeemo:lang-change";
 
 function readLang(): Lang {
   const v = localStorage.getItem(STORAGE_KEY);
-  return v === "ar" ? "ar" : "en";
+  return v === "en" ? "en" : "ar";
 }
 
 
@@ -42,7 +42,7 @@ function subscribe(callback: () => void) {
   };
 }
 
-export function LanguageProvider({ children, initialLang = "en" }: { children: ReactNode, initialLang?: Lang }) {
+export function LanguageProvider({ children, initialLang = "ar" }: { children: ReactNode, initialLang?: Lang }) {
   const router = useRouter();
   
   const getServerLang = useCallback(() => initialLang, [initialLang]);

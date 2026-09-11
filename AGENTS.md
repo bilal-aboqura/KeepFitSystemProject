@@ -8,6 +8,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Verification commands (run after changes)
 - Lint: `npm run lint`
+- Customer regression: `npm run test:customer-db` (transactional fixtures roll back)
 - Typecheck + build: `npm run build`
 - Dev: `npm run dev` (http://localhost:3000)
 

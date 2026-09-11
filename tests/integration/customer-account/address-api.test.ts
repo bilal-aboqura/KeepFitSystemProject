@@ -1,0 +1,12 @@
+import { beforeEach,it,expect,vi } from "vitest";
+const mock=vi.hoisted(()=>({current:vi.fn(),rpc:vi.fn()}));
+vi.mock("@/lib/customers/session",()=>({getCurrentCustomer:mock.current}));
+vi.mock("@/lib/supabase/server",()=>({getSupabaseServiceClient:()=>({rpc:mock.rpc})}));
+import { PATCH,DELETE } from "@/app/api/customer/addresses/[id]/route";
+import { POST } from "@/app/api/customer/addresses/[id]/default/route";
+const id="00000000-0000-4000-8000-000000000001",ctx={params:Promise.resolve({id})};
+beforeEach(()=>{vi.clearAllMocks();mock.current.mockResolvedValue({id:"session-owner"});mock.rpc.mockResolvedValue({data:null,error:null});});
+it("cross-customer default selection returns generic not found",async()=>{const r=await POST(new Request("http://local"),ctx);expect(r.status).toBe(404);expect(mock.rpc).toHaveBeenCalledWith("customer_address_command",{p_customer_id:"session-owner",p_action:"default",p_id:id,p_data:{}});});
+it("cross-customer delete returns not found",async()=>expect((await DELETE(new Request("http://local"),ctx)).status).toBe(404));
+it("rejects ownership injection before any write",async()=>{const r=await PATCH(new Request("http://local",{method:"PATCH",body:JSON.stringify({customer_id:"other"})}),ctx);expect(r.status).toBe(422);expect(mock.rpc).not.toHaveBeenCalled();});
+it("returns service failure distinctly from validation",async()=>{mock.rpc.mockResolvedValue({error:new Error("private")});const r=await POST(new Request("http://local"),ctx);expect(r.status).toBe(503);expect(await r.text()).not.toContain("private");});

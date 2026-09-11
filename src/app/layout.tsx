@@ -72,7 +72,8 @@ export default async function RootLayout({
   
   return (
     <html
-      lang="en"
+      lang={lang}
+      dir={lang === "ar" ? "rtl" : "ltr"}
       suppressHydrationWarning
       className={`${ibmPlexSansArabic.variable} h-full antialiased scroll-smooth`}
     >

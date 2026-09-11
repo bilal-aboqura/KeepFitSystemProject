@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:customer-db": "node --env-file=.env.local node_modules/vitest/vitest.mjs run",
+    "test:customer-coverage": "node --env-file=.env.local node_modules/vitest/vitest.mjs run --coverage",
     "test:watch": "vitest",
     "migrate:feature-001": "node --env-file=.env.local scripts/migrate-feature-001.mjs"
   },
@@ -25,6 +27,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/pg": "^8.15.0",
+    "@vitest/coverage-v8": "^4.1.11",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

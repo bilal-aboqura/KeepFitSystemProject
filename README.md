@@ -69,6 +69,30 @@ for local development plus `https://YOUR-DOMAIN/auth/callback` in production. Ad
 URLs to Supabase's redirect allow-list. The application callback exchanges the code server-side;
 never place provider secrets in `NEXT_PUBLIC_` variables.
 
+In Google Cloud, the authorized redirect URI is Supabase's
+`https://YOUR-PROJECT.supabase.co/auth/v1/callback`, not the application callback.
+Store the Google client ID and secret in Supabase Authentication > Providers > Google.
+The OAuth client must be enabled; `disabled_client` is a Google configuration error.
+The application supports either the publishable key or the legacy anon key.
+
+### Feature 001 validation
+
+Run `npm run test:customer-db` with the disposable database's `DIRECT_URL` in
+`.env.local`. Database fixtures are rolled back; tests use no real orders or shipments.
+Run `npm run lint` and `npm run build` before rollout.
+The feature migration runner saves a local ignored data/policy backup under `backups/`,
+checks the base schema, applies changes transactionally, and checks preserved order counts.
+These logical backups contain customer data: keep them private. They complement the
+Supabase project backup and are not a full database/PITR replacement.
+
+Run `npm run test:customer-coverage` for the full customer suite and coverage report.
+The current acceptance evidence and unresolved external requirements are recorded in
+[Feature 001 implementation status](specs/001-customer-google-account/implementation-status.md).
+
+The legacy catalog seeder requires the original `Data/montgat*.json` files.
+Feature migrations run independently of this catalog import. Configure products,
+delivery locations and provider sandbox credentials before end-to-end checkout acceptance.
+
 ## Operational Integrations
 
 Kashier, Bosta, Mylerz, notifications, Meta tracking, and analytics are existing working
