@@ -54,29 +54,30 @@ export function HomeHero({ overrides }: { overrides?: HeroOverrides }) {
         priority
         quality={88}
         sizes="100vw"
-        className="object-cover object-[34%_center] sm:object-[38%_center] lg:object-center"
+        className="object-cover object-[34%_top] sm:object-[38%_top] lg:object-[34%_top]"
       />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,5,5,0.05)_0%,rgba(5,5,5,0.28)_38%,rgba(5,5,5,0.92)_76%,#050505_100%)] lg:bg-[linear-gradient(90deg,rgba(5,5,5,0.03)_0%,rgba(5,5,5,0.12)_42%,rgba(5,5,5,0.88)_69%,#050505_100%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[#050505] via-[#050505]/75 to-transparent sm:h-20" />
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand/70 to-transparent" />
 
       <div
         dir="ltr"
-        className="relative z-10 mx-auto flex min-h-[calc(100svh-72px)] max-w-[96rem] items-end px-5 pb-10 pt-[23rem] sm:px-8 sm:pb-14 sm:pt-[27rem] lg:items-center lg:justify-end lg:px-12 lg:py-24"
+        className="relative z-10 mx-auto flex min-h-[calc(100svh-72px)] max-w-[96rem] items-end px-5 pb-12 pt-[23rem] sm:px-8 sm:pb-16 sm:pt-[27rem] lg:items-center lg:justify-end lg:px-12 lg:py-28"
       >
         <div className="max-w-[41rem] text-start lg:w-[47%]" dir={ar ? "rtl" : "ltr"}>
           <h1 className="max-w-[12ch] text-balance font-heading text-[clamp(2.85rem,6vw,5.3rem)] font-extrabold leading-[1.12] tracking-[-0.025em] text-white [text-shadow:0_3px_22px_rgba(0,0,0,0.7)]">
             {ar && title === "كل هدف يبدأ من تغذية صح." ? (
               <>
                 <span className="block">كل هدف يبدأ</span>
-                <span className="mt-3 block">من تغذية صح.</span>
+                <span className="mt-5 block">من تغذية صح.</span>
               </>
             ) : title}
           </h1>
-          <p className="mt-6 max-w-[39rem] text-pretty text-base font-medium leading-8 text-white/80 [text-shadow:0_2px_14px_rgba(0,0,0,0.8)] sm:text-lg sm:leading-9">
+          <p className="mt-8 max-w-[39rem] text-pretty text-base font-medium leading-8 text-white/80 [text-shadow:0_2px_14px_rgba(0,0,0,0.8)] sm:text-lg sm:leading-9">
             {subtitle}
           </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link
               href="#bestsellers"
               className="inline-flex min-h-14 items-center justify-center gap-3 rounded-lg bg-brand px-7 text-base font-black text-black transition duration-200 hover:-translate-y-0.5 hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
@@ -92,7 +93,7 @@ export function HomeHero({ overrides }: { overrides?: HeroOverrides }) {
             </Link>
           </div>
 
-          <ul className="mt-9 flex flex-wrap gap-x-6 gap-y-3 border-t border-white/10 pt-6">
+          <ul className="mt-10 flex flex-wrap gap-x-6 gap-y-3 border-t border-white/10 pt-6">
             {trustItems.map(({ Icon, label }) => (
               <li key={label} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-white/70">
                 <Icon size={18} className="text-brand" aria-hidden="true" />

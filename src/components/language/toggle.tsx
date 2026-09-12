@@ -10,12 +10,12 @@ export function LanguageToggle({ className = "" }: { className?: string }) {
       type="button"
       onClick={toggle}
       aria-label="Toggle language"
-      className={`flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-sm font-medium text-fg-dim transition hover:border-brand/40 hover:text-fg ${className}`}
+      className={`group flex min-h-11 items-center gap-2 rounded-lg border border-brand/80 bg-brand/10 px-3.5 text-sm font-extrabold text-white transition hover:bg-brand hover:text-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${className}`}
     >
-      <Languages size={14} />
-      <span className={lang === "en" ? "text-fg" : "opacity-50"}>EN</span>
-      <span className="text-border-hover">/</span>
-      <span className={lang === "ar" ? "text-fg" : "opacity-50"}>AR</span>
+      <Languages size={16} strokeWidth={2.4} />
+      <span className={lang === "ar" ? "text-brand transition group-hover:text-black" : "text-white/60 transition group-hover:text-black/70"}>AR</span>
+      <span className="text-brand/80 transition group-hover:text-black/70">/</span>
+      <span className={lang === "en" ? "text-brand transition group-hover:text-black" : "text-white/60 transition group-hover:text-black/70"}>EN</span>
     </button>
   );
 }
