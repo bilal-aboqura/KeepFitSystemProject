@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 interface MetaOrderItem {
   product_id: string | null;
   price: number;
+  unit_price_minor?: string | null;
   quantity: number;
 }
 
@@ -51,7 +52,7 @@ export async function sendPurchaseOrderToMeta(order: PurchaseOrder) {
     .map((item) => ({
       id: item.product_id as string,
       quantity: item.quantity,
-      item_price: Number(item.price),
+      item_price: item.unit_price_minor ? Number(item.unit_price_minor) / 100 : Number(item.price),
     }));
   const names = order.customer_name.trim().split(/\s+/);
   const userData: Record<string, string[]> = {
@@ -110,7 +111,7 @@ export async function sendCancelledOrderToMeta(order: CancelledOrder) {
     .map((item) => ({
       id: item.product_id as string,
       quantity: item.quantity,
-      item_price: Number(item.price),
+      item_price: item.unit_price_minor ? Number(item.unit_price_minor) / 100 : Number(item.price),
     }));
 
   const response = await fetch(

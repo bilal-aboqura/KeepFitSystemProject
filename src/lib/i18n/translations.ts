@@ -95,6 +95,12 @@ export const ui = {
         conversion: "Unit conversion",
         invalidHierarchy: "The packaging hierarchy is invalid",
       },
+      pricing: {
+        from: "From",
+        derived: "Derived from package pricing",
+        unavailable: "Price unavailable",
+        loading: "Refreshing price…",
+      },
     },
     cart: {
       title: "Your Cart",
@@ -106,7 +112,10 @@ export const ui = {
       continueShopping: "Continue Shopping",
       freeShippingUnlocked: "Free shipping unlocked!",
       freeShippingRemaining: "more for free shipping",
+      priceChanged: "A price changed. Your cart now shows the current price.",
+      repriceRetry: "We could not refresh prices. Try again before checkout.",
     },
+    pricingAdmin: { lists: "Price Lists", schedule: "Schedule", mappings: "Customer Type mappings", directList: "Direct List", override: "Customer override", explicit: "Explicit", derived: "Derived", bulkSave: "Save all prices", overlap: "Price periods cannot overlap", invalidTarget: "Choose a valid Variant and Sellable Unit" },
     checkout: {
       title: "Checkout",
       contactInfo: "Contact & Shipping",
@@ -366,6 +375,12 @@ export const ui = {
         conversion: "تحويل الوحدات",
         invalidHierarchy: "تسلسل التعبئة غير صالح",
       },
+      pricing: {
+        from: "ابتداءً من",
+        derived: "سعر مشتق من العبوة",
+        unavailable: "السعر غير متوفر",
+        loading: "جارٍ تحديث السعر…",
+      },
     },
     cart: {
       title: "سلة المشتريات",
@@ -377,7 +392,10 @@ export const ui = {
       continueShopping: "متابعة التسوق",
       freeShippingUnlocked: "مبروك! الشحن مجاني",
       freeShippingRemaining: "كمان وتحصل على شحن مجاني",
+      priceChanged: "اتغيّر سعر وتم تحديث السلة بالسعر الحالي.",
+      repriceRetry: "تعذر تحديث الأسعار. حاول مرة أخرى قبل الدفع.",
     },
+    pricingAdmin: { lists: "قوائم الأسعار", schedule: "الجدولة", mappings: "ربط أنواع العملاء", directList: "قائمة مباشرة", override: "استثناء للعميل", explicit: "صريح", derived: "مشتق", bulkSave: "حفظ كل الأسعار", overlap: "لا يمكن أن تتداخل فترات الأسعار", invalidTarget: "اختر متغير المنتج ووحدة البيع بشكل صحيح" },
     checkout: {
       title: "إتمام الطلب",
       contactInfo: "بيانات التواصل والتوصيل",

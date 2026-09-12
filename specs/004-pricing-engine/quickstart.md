@@ -40,6 +40,21 @@ npm run build
 
 Use sandbox/mock external integrations only. Validate COD and Kashier test flows plus mocked Bosta, Mylerz, notifications, Meta, and analytics. Manually verify Arabic RTL and English LTR card/detail/cart/admin/unavailable/schedule states at ~390 px.
 
+Resolver output is personalized and request-scoped. Do not place it in a shared/static/ISR cache or cache it globally by Variant alone; safe reuse must include the effective Customer context, Variant, Sellable Unit, pricing-configuration version, and activation instant. Public and authenticated routes resolve with `no-store` semantics. Schedule activation uses the database clock and half-open intervals, so a price becomes current at `valid_from` without an application restart or cache purge.
+
+### Visual acceptance record — 2026-09-13
+
+At a 390 × 844 browser viewport, English rendered LTR and Arabic rendered RTL without horizontal document overflow. Verified the catalog card, priced and unavailable Product detail, selected Unit display, priced and empty Cart, priced and empty Checkout, populated admin Price Grid, scheduled `[start,end)` editor, and admin diagnostic/audit states. Price values, EGP formatting, disabled unavailable actions, localized status/error copy, narrow table layout, and sticky mobile checkout actions remained readable and operable.
+
+### Verification record — 2026-09-13
+
+- Feature 003/preflight: 4 active Variants, no missing/duplicate default Units, no invalid legacy prices, and no invalid conversions.
+- `npm run migrate:feature-004`: passed and applied the additive pricing migration.
+- `npm test`: 43 files passed; 169 tests passed and 1 intentional skip.
+- `npm run test:customer-db`: 43 files passed; 169 tests passed and 1 intentional skip with transactional database fixtures.
+- `npm run lint`: passed with zero errors and one pre-existing `@next/next/no-img-element` warning in `src/app/layout.tsx`.
+- `npm run build`: passed with Next.js 16.2.9; 87 routes generated/verified.
+
 ## Rollback rehearsal
 
 Rehearse failed preflight and post-schema/pre-cutover rollback before production. Verify legacy reads remain available while compatibility fields exist, no order can use a client price, and no audit or immutable order snapshot is deleted. Missing authoritative price must fail closed with an operator diagnostic, never use a stale client/cart value.

@@ -27,6 +27,7 @@ export interface CatalogPackagingUnit extends CatalogPackagingUnitInput {
   base_quantity: CatalogRational;
   compatibility_price?: number;
   compatibility_compare_at_price?: number | null;
+  resolved_price?: import("@/lib/pricing/types").PublicPriceProjection;
   archived_at?: string | null;
 }
 

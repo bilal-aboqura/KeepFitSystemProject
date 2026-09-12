@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getCheckoutSettings } from "@/lib/data/catalog";
 import { getShippingCostForProducts, resolveDiscount } from "@/lib/data/orders";
-import { calcItemsSubtotal, calcOnlinePaymentDiscount } from "@/lib/pricing";
+import { calcItemsSubtotal, calcOnlinePaymentDiscount } from "@/lib/pricing/legacy-adjustments";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 
 const LineSchema = z.object({
@@ -38,6 +38,7 @@ type ExistingLine = {
   equivalent_base_quantity_num: number | null;
   equivalent_base_quantity_den: number | null;
   price: number;
+  unit_price_minor: string | null;
   image: string | null;
 };
 
@@ -71,7 +72,7 @@ export async function PUT(
 
   const { data: order } = await supabase
     .from("orders")
-    .select("id, governorate, city, payment_method, discount_code, order_items(id, product_id, variant_id, sellable_unit_id, sku, sellable_unit_code, name_en, name_ar, product_name_en, product_name_ar, variant_label_en, variant_label_ar, unit_label_en, unit_label_ar, units_per_sold_package_num, units_per_sold_package_den, base_quantity_per_unit_num, base_quantity_per_unit_den, equivalent_base_quantity_num, equivalent_base_quantity_den, price, image)")
+    .select("id, governorate, city, payment_method, discount_code, order_items(id, product_id, variant_id, sellable_unit_id, sku, sellable_unit_code, name_en, name_ar, product_name_en, product_name_ar, variant_label_en, variant_label_ar, unit_label_en, unit_label_ar, units_per_sold_package_num, units_per_sold_package_den, base_quantity_per_unit_num, base_quantity_per_unit_den, equivalent_base_quantity_num, equivalent_base_quantity_den, price, unit_price_minor, image)")
     .eq("id", id)
     .maybeSingle();
   if (!order) {
@@ -81,6 +82,9 @@ export async function PUT(
   const existingLines = new Map(
     ((order.order_items ?? []) as ExistingLine[]).map((line) => [line.id, line]),
   );
+  if ([...existingLines.values()].some((line) => line.unit_price_minor !== null)) {
+    return NextResponse.json({ error: "Authoritative pricing snapshots are immutable. Create a replacement order instead." }, { status: 409 });
+  }
   const requestedProductIds = Array.from(
     new Set(
       parsed.data.items

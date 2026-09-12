@@ -19,8 +19,8 @@ import {
   BadgePercent,
 } from "lucide-react";
 import { useLang } from "@/components/language/provider";
-import { useCart, clearCart, removeFromCart } from "@/lib/cart";
-import { calcItemsSubtotal, calcOnlinePaymentDiscount } from "@/lib/pricing";
+import { useCart, clearCart, repriceCart } from "@/lib/cart";
+import { calcItemsSubtotal, calcOnlinePaymentDiscount } from "@/lib/pricing/legacy-adjustments";
 import { formatPrice } from "@/lib/utils";
 import type { GovernorateOption } from "@/lib/data/locations";
 import { useShippingQuote } from "@/components/storefront/use-shipping-quote";
@@ -173,24 +173,25 @@ export default function CheckoutPage() {
     }
     setSubmitting(true);
     try {
-      const orderItems: { variant_id?: string; sellable_unit_id?: string; product_id?: string; quantity: number; image: string; offer?: "order_bump"; offer_key?: string }[] =
-        items.map((i) => ({ variant_id: i.variant_id, sellable_unit_id: i.sellable_unit_id, product_id: i.product_id ?? (i.variant_id ? undefined : i.id), quantity: i.quantity, image: i.image, offer_key: i.offer_key }));
+      if (items.some((item) => !item.variant_id || !item.sellable_unit_id)) {
+        throw new Error(ar ? "أعد اختيار المنتجات القديمة قبل الدفع." : "Choose any legacy cart products again before checkout.");
+      }
+      const orderItems: { variant_id: string; sellable_unit_id: string; quantity: number }[] =
+        items.map((i) => ({ variant_id: i.variant_id!, sellable_unit_id: i.sellable_unit_id!, quantity: i.quantity }));
       if (bumpAdded && bumpProduct) {
         orderItems.push({
           variant_id: bumpProduct.variant_id,
           sellable_unit_id: bumpProduct.sellable_unit_id,
-          product_id: bumpProduct.id,
-          offer: "order_bump",
           quantity: 1,
-          image: bumpProduct.image ?? "",
         });
       }
       const payload = { ...form, items: orderItems };
       const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await res.json();
       if (!res.ok && data.redirect === "/account/complete-profile") { router.push("/account/complete-profile?next=%2Fcheckout"); return; }
-      if (!res.ok && data.code === "ambiguous_legacy_cart") {
-        items.filter((item) => !item.variant_id || !item.sellable_unit_id).forEach((item) => removeFromCart(item.id));
+      if (!res.ok && (data.code === "PRICE_CHANGED" || data.code === "PRICE_UNAVAILABLE")) {
+        await repriceCart(items).catch(() => undefined);
+        throw new Error(data.code === "PRICE_CHANGED" ? t.cart.priceChanged : t.product.pricing.unavailable);
       }
       if (!res.ok) throw new Error(data.error || "Order failed");
       if (form.payment_method === "card" && data.redirect?.startsWith("http")) { clearCart(); window.location.href = data.redirect; return; }

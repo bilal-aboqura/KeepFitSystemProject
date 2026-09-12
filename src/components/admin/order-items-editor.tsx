@@ -16,6 +16,7 @@ interface OrderLine {
   price: number;
   quantity: number;
   image: string | null;
+  unit_price_minor?: string | null;
 }
 
 interface CatalogProduct {
@@ -61,12 +62,14 @@ export function OrderItemsEditor({
   const [totals, setTotals] = useState(initialTotals);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const authoritativeSnapshot = initialItems.some((item) => item.unit_price_minor !== null && item.unit_price_minor !== undefined);
   const lineSubtotal = useMemo(
     () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [items],
   );
 
   function updateQuantity(key: string, quantity: number) {
+    if (authoritativeSnapshot) return;
     setItems((current) =>
       current.map((item) =>
         item.key === key ? { ...item, quantity: Math.max(1, Math.min(999, quantity)) } : item,
@@ -76,6 +79,7 @@ export function OrderItemsEditor({
   }
 
   function removeItem(key: string) {
+    if (authoritativeSnapshot) return;
     setItems((current) => current.filter((item) => item.key !== key));
     setDirty(true);
   }
@@ -147,10 +151,10 @@ export function OrderItemsEditor({
               {ar ? "منتجات الطلب" : "Order products"}
             </div>
             <p className="mt-1 text-xs text-fg-dim">
-              {ar ? "الأسعار القديمة تبقى كما هي، والمنتجات الجديدة تستخدم سعرها الحالي." : "Existing prices are preserved; new products use their current catalog price."}
+              {authoritativeSnapshot ? (ar ? "لقطات الأسعار المعتمدة لهذا الطلب غير قابلة للتغيير." : "This order's authoritative pricing snapshots are immutable.") : (ar ? "الأسعار القديمة تبقى كما هي." : "Existing legacy prices are preserved.")}
             </p>
           </div>
-          <div className="flex w-full gap-2 sm:w-auto">
+          {!authoritativeSnapshot && <div className="flex w-full gap-2 sm:w-auto">
             <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="input min-w-0 sm:w-72">
               <option value="">{ar ? "اختر منتجًا لإضافته" : "Select a product to add"}</option>
               {products.map((product) => (
@@ -163,7 +167,7 @@ export function OrderItemsEditor({
               <Plus size={16} />
               <span className="hidden sm:inline">{ar ? "إضافة" : "Add"}</span>
             </button>
-          </div>
+          </div>}
         </div>
 
         <div className="mt-3 space-y-2">
@@ -177,12 +181,12 @@ export function OrderItemsEditor({
                 <p className="text-xs text-fg-dim">{formatPrice(item.price, lang)}</p>
               </div>
               <div className="flex items-center rounded-lg border border-border bg-white">
-                <button type="button" onClick={() => updateQuantity(item.key, item.quantity - 1)} className="flex h-9 w-9 items-center justify-center text-fg-dim hover:text-brand" aria-label={ar ? "تقليل الكمية" : "Decrease quantity"}><Minus size={14} /></button>
-                <input type="number" min={1} max={999} value={item.quantity} onChange={(event) => updateQuantity(item.key, Number(event.target.value) || 1)} className="h-9 w-12 border-x border-border bg-transparent text-center text-sm font-semibold text-fg outline-none" />
-                <button type="button" onClick={() => updateQuantity(item.key, item.quantity + 1)} className="flex h-9 w-9 items-center justify-center text-fg-dim hover:text-brand" aria-label={ar ? "زيادة الكمية" : "Increase quantity"}><Plus size={14} /></button>
+                <button type="button" disabled={authoritativeSnapshot} onClick={() => updateQuantity(item.key, item.quantity - 1)} className="flex h-9 w-9 items-center justify-center text-fg-dim hover:text-brand disabled:opacity-40" aria-label={ar ? "تقليل الكمية" : "Decrease quantity"}><Minus size={14} /></button>
+                <input type="number" disabled={authoritativeSnapshot} min={1} max={999} value={item.quantity} onChange={(event) => updateQuantity(item.key, Number(event.target.value) || 1)} className="h-9 w-12 border-x border-border bg-transparent text-center text-sm font-semibold text-fg outline-none disabled:opacity-60" />
+                <button type="button" disabled={authoritativeSnapshot} onClick={() => updateQuantity(item.key, item.quantity + 1)} className="flex h-9 w-9 items-center justify-center text-fg-dim hover:text-brand disabled:opacity-40" aria-label={ar ? "زيادة الكمية" : "Increase quantity"}><Plus size={14} /></button>
               </div>
               <p className="w-24 text-end text-sm font-bold text-fg">{formatPrice(item.price * item.quantity, lang)}</p>
-              <button type="button" onClick={() => removeItem(item.key)} className="flex h-9 w-9 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50" aria-label={ar ? "حذف المنتج" : "Remove product"}><Trash2 size={16} /></button>
+              <button type="button" disabled={authoritativeSnapshot} onClick={() => removeItem(item.key)} className="flex h-9 w-9 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 disabled:opacity-30" aria-label={ar ? "حذف المنتج" : "Remove product"}><Trash2 size={16} /></button>
             </div>
           ))}
           {!items.length ? <p className="py-8 text-center text-sm text-red-600">{ar ? "لا يمكن حفظ طلب فارغ." : "An empty order cannot be saved."}</p> : null}
@@ -192,7 +196,7 @@ export function OrderItemsEditor({
           <p className="text-sm text-fg-dim">
             {ar ? "مجموع السطور الآن" : "Current line subtotal"}: <strong className="text-fg">{formatPrice(lineSubtotal, lang)}</strong>
           </p>
-          <button type="button" onClick={() => void saveItems()} disabled={!dirty || saving || !items.length} className="btn btn-primary">
+          <button type="button" onClick={() => void saveItems()} disabled={authoritativeSnapshot || !dirty || saving || !items.length} className="btn btn-primary">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             {saving ? (ar ? "جارٍ الحفظ..." : "Saving...") : ar ? "حفظ وإعادة الحساب" : "Save and recalculate"}
           </button>

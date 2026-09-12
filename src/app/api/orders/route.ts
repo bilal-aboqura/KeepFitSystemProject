@@ -2,23 +2,20 @@ import { checkoutPhoneSchema } from "@/lib/customers/validation";
 import { after, NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createOrder, getOrderByNumber } from "@/lib/data/orders";
+import type { PricingOrderError } from "@/lib/data/orders";
+import { logPricingOperationalEvent } from "@/lib/pricing/observability";
 import { createCheckoutUrl } from "@/lib/kashier";
 import { sendNewOrderNotifications } from "@/lib/notifications";
 import { sendPurchaseOrderToMeta } from "@/lib/meta-conversions";
 import { getCurrentCustomer } from "@/lib/customers/session";
 import { isCustomerProfileComplete } from "@/lib/customers/identity";
 import { confirmationGrantCookieName, confirmationCookieOptions } from "@/lib/customers/grants";
-import { CatalogError } from "@/lib/catalog/errors";
 
 const ItemSchema = z.object({
-  variant_id: z.string().uuid().optional(),
-  sellable_unit_id: z.string().uuid().optional(),
-  product_id: z.string().uuid().optional(),
+  variant_id: z.string().uuid(),
+  sellable_unit_id: z.string().uuid(),
   quantity: z.number().int().positive(),
-  image: z.string().optional(),
-  offer: z.literal("order_bump").optional(),
-  offer_key: z.string().trim().min(1).max(80).optional(),
-}).refine((item) => Boolean((item.variant_id && item.sellable_unit_id) || (!item.variant_id && item.product_id)), { error: "A Variant and Sellable Unit are required" });
+}).strict();
 
 
 const BodySchema = z.object({
@@ -32,7 +29,7 @@ const BodySchema = z.object({
   payment_method: z.enum(["card", "cod"]),
   discount_code: z.string().optional().nullable(),
   items: z.array(ItemSchema).min(1),
-}).refine((data) => data.customer_phone !== data.alt_phone, {
+}).strict().refine((data) => data.customer_phone !== data.alt_phone, {
   error: "The alternative phone number must be different from the main phone number.",
   path: ["alt_phone"],
 });
@@ -41,7 +38,12 @@ export async function POST(request: NextRequest) {
   try {
     return await placeOrder(request);
   } catch (error) {
-    if (error instanceof CatalogError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    if (error && typeof error === "object" && "code" in error && "status" in error) {
+      const pricingError = error as PricingOrderError;
+      logPricingOperationalEvent(pricingError.code === "PRICE_UNAVAILABLE" ? "PRICE_UNAVAILABLE" : "CHECKOUT_REPRICE_FAILED", { detail: pricingError.message });
+      return NextResponse.json({ error: pricingError.message, code: pricingError.code, items: pricingError.safeItems }, { status: pricingError.status });
+    }
+    logPricingOperationalEvent("CHECKOUT_REPRICE_FAILED", { detail: error instanceof Error ? error.message : "unknown" });
     return NextResponse.json({ error: "Checkout is temporarily unavailable. Please try again." }, { status: 503 });
   }
 }

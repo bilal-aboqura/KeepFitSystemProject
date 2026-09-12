@@ -33,7 +33,7 @@ function buildTelegramMessage(order: OrderForConfirmation): string {
     : "";
   const items = order.order_items.slice(0, 15).map((item) => {
     const name = item.name_ar || item.name_en;
-    const total = Number(item.price) * item.quantity;
+    const total = item.line_total_minor !== null ? Number(item.line_total_minor) / 100 : Number(item.line_total ?? Number(item.price) * item.quantity);
     return `• ${escapeHtml(name.slice(0, 120))} × ${item.quantity} — ${formatPrice(total, "en")}`;
   });
   if (order.order_items.length > items.length) {
@@ -84,7 +84,7 @@ export function buildOwnerWhatsAppUrl(order: OrderForConfirmation): string {
     "Items:",
     ...order.order_items.map(
       (item) =>
-        `• ${item.name_en} ×${item.quantity} = ${formatPrice(Number(item.price) * item.quantity, "en")}`,
+        `• ${item.name_en} ×${item.quantity} = ${formatPrice(item.line_total_minor !== null ? Number(item.line_total_minor) / 100 : Number(item.line_total ?? Number(item.price) * item.quantity), "en")}`,
     ),
   ];
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(lines.join("\n"))}`;

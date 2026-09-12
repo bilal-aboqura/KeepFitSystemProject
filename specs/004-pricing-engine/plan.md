@@ -148,6 +148,8 @@ Run migration/preflight and parity comparison in staging before production. Moni
 
 Feature 004 answers only “what authoritative unit price applies now?” Feature 005 may supply `(Customer context, Variant, Sellable Unit, quantity)` and consume price; it must not inspect type requests, Lists, mappings, overrides, or schedules. Feature 005 owns MOQ, quantity rules, inventory, reservations, and final B2B checkout UX. Do not add pricing-driven Catalog coupling, stock mutations, payment proof, or automation infrastructure.
 
+The exported `Feature005PricingInput` and `Feature005PricingResult` types are the integration seam. The pricing result contains price availability and resolution metadata only; it neither validates MOQ nor reserves/checks inventory. Feature 005 must apply its quantity, eligibility, and stock decisions around this resolver boundary.
+
 ## Complexity Tracking
 
 No constitution violations require justification.

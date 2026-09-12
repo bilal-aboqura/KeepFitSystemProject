@@ -14,6 +14,20 @@ Orders ── immutable price snapshot ─────────────�
 
 Feature 003 owns Product/Variant/Sellable Unit, their sellability, and conversion graph. Feature 002 owns effective Customer Type. Pricing owns configuration and resolution only; it copies neither type requests nor packaging facts.
 
+## Verified Feature 003 physical schema
+
+Verified against the repository migrations and connected database on 2026-09-13:
+
+| Concept | Physical relation / columns |
+|---|---|
+| Variant | `public.product_variants`; `id`, `product_id`, `sku`, `label_en`, `label_ar`, `base_price`, `is_active`, `archived_at` |
+| Sellable Unit | `public.variant_packaging_units`; `id`, `variant_id`, `parent_unit_id`, `code`, `label_en`, `label_ar`, `is_sellable`, `is_default_sale_unit`, `default_price_mode`, `is_active`, `archived_at` |
+| Immediate conversion | `quantity_per_parent_num`, `quantity_per_parent_den` |
+| Normalized base equivalent | `base_quantity_num`, `base_quantity_den` |
+| Order commercial identity | `public.order_items.variant_id`, `sellable_unit_id`, `sku`, `sellable_unit_code`, bilingual Product/Variant/Unit label snapshots, rational conversion snapshots, and `line_total` |
+
+The connected database contained four active Variants and four active/default/sellable Units, with no active Variant missing its default Sellable Unit. Feature 004 targets these names directly.
+
 ## Price List
 
 | Field | Rule |

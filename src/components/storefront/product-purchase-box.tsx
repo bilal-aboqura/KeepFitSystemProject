@@ -13,6 +13,7 @@ import type { ProductDetail } from "@/lib/data/catalog";
 import { VariantSelector } from "./variant-selector";
 import { ProductGallery } from "./product-gallery";
 import { SellableUnitSelector } from "./sellable-unit-selector";
+import type { PublicPriceProjection } from "@/lib/pricing/types";
 
 export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
   const { t, lang } = useLang();
@@ -26,14 +27,20 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
   const initialUnit = sellableUnits.find((unit) => unit.is_default_sale_unit) ?? sellableUnits[0];
   const [selectedUnitId, setSelectedUnitId] = useState(initialUnit?.id ?? "");
   const selectedUnit = sellableUnits.find((unit) => unit.id === selectedUnitId) ?? initialUnit;
-  const out = !selectedVariant || !selectedUnit || selectedVariant.stock <= 0 || !selectedVariant.is_active;
+  const [livePrice, setLivePrice] = useState<PublicPriceProjection | null>(null);
+  const [repriceFailed, setRepriceFailed] = useState(false);
+  const resolvedPrice = livePrice?.variantId === selectedVariant?.id && livePrice.sellableUnitId === selectedUnit?.id
+    ? livePrice
+    : selectedUnit?.resolved_price ?? null;
+  const priceUnavailable = resolvedPrice?.availability !== "priced";
+  const out = !selectedVariant || !selectedUnit || selectedVariant.stock <= 0 || !selectedVariant.is_active || priceUnavailable;
   const ar = lang === "ar";
 
   const name = ar ? product.name_ar : product.name_en;
   const desc = ar ? product.long_desc_ar : product.long_desc_en;
   const image = selectedVariant?.media[0]?.public_url ?? product.images?.[0] ?? "/keepfit-logo.png";
-  const price = Number(selectedUnit?.compatibility_price ?? selectedVariant?.base_price ?? product.price);
-  const compareAtPrice = Number(selectedUnit?.compatibility_compare_at_price ?? selectedVariant?.compare_at_price ?? product.compare_at_price);
+  const price = resolvedPrice?.availability === "priced" ? Number(resolvedPrice.displayAmount) : 0;
+  const compareAtPrice = Number.NaN;
   const hasSale = Number.isFinite(compareAtPrice) && compareAtPrice > price;
   const savings = hasSale ? compareAtPrice - price : 0;
   const discountPercent = hasSale ? Math.round((savings / compareAtPrice) * 100) : 0;
@@ -47,9 +54,30 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
     trackMetaEvent("ViewContent", productMetaParams({ id: product.id, price }));
   }, [price, product.id]);
 
+  useEffect(() => {
+    if (!selectedVariant || !selectedUnit) return;
+    const controller = new AbortController();
+    fetch("/api/pricing/reprice", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ items: [{ variant_id: selectedVariant.id, sellable_unit_id: selectedUnit.id, quantity: 1 }] }),
+      signal: controller.signal,
+    }).then(async (response) => {
+      const body = await response.json();
+      const next = body.items?.[0] as PublicPriceProjection | undefined;
+      if (!next) throw new Error("Missing price result");
+      setLivePrice(next);
+      setRepriceFailed(false);
+    }).catch((error) => {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setRepriceFailed(true);
+    });
+    return () => controller.abort();
+  }, [selectedVariant, selectedUnit]);
+
   function handleAdd() {
     if (out || !selectedVariant || !selectedUnit) return;
-    addToCart({ id: `${selectedVariant.id}:${selectedUnit.id}`, variant_id: selectedVariant.id, sellable_unit_id: selectedUnit.id, product_id: product.id, sku: selectedVariant.sku, unit_code: selectedUnit.code, unit_label_en: selectedUnit.label_en, unit_label_ar: selectedUnit.label_ar, base_quantity_num: selectedUnit.base_quantity.numerator, base_quantity_den: selectedUnit.base_quantity.denominator, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, variant_label_en: selectedVariant.label_en, variant_label_ar: selectedVariant.label_ar, price, image, stock: selectedVariant.stock }, qty);
+    addToCart({ id: `${selectedVariant.id}:${selectedUnit.id}`, variant_id: selectedVariant.id, sellable_unit_id: selectedUnit.id, product_id: product.id, sku: selectedVariant.sku, unit_code: selectedUnit.code, unit_label_en: selectedUnit.label_en, unit_label_ar: selectedUnit.label_ar, base_quantity_num: selectedUnit.base_quantity.numerator, base_quantity_den: selectedUnit.base_quantity.denominator, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, variant_label_en: selectedVariant.label_en, variant_label_ar: selectedVariant.label_ar, price, price_minor: resolvedPrice?.availability === "priced" ? resolvedPrice.amountMinor : undefined, price_currency: "EGP", price_status: "current", image, stock: selectedVariant.stock }, qty);
     trackMetaEvent("AddToCart", productMetaParams({ id: selectedVariant.id, price, quantity: qty }));
     trackStoreEvent("add_to_cart");
     setAdded(true);
@@ -58,7 +86,7 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
 
   function buyNow() {
     if (out || !selectedVariant || !selectedUnit) return;
-    addToCart({ id: `${selectedVariant.id}:${selectedUnit.id}`, variant_id: selectedVariant.id, sellable_unit_id: selectedUnit.id, product_id: product.id, sku: selectedVariant.sku, unit_code: selectedUnit.code, unit_label_en: selectedUnit.label_en, unit_label_ar: selectedUnit.label_ar, base_quantity_num: selectedUnit.base_quantity.numerator, base_quantity_den: selectedUnit.base_quantity.denominator, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, variant_label_en: selectedVariant.label_en, variant_label_ar: selectedVariant.label_ar, price, image, stock: selectedVariant.stock }, qty, { showPrompt: false });
+    addToCart({ id: `${selectedVariant.id}:${selectedUnit.id}`, variant_id: selectedVariant.id, sellable_unit_id: selectedUnit.id, product_id: product.id, sku: selectedVariant.sku, unit_code: selectedUnit.code, unit_label_en: selectedUnit.label_en, unit_label_ar: selectedUnit.label_ar, base_quantity_num: selectedUnit.base_quantity.numerator, base_quantity_den: selectedUnit.base_quantity.denominator, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, variant_label_en: selectedVariant.label_en, variant_label_ar: selectedVariant.label_ar, price, price_minor: resolvedPrice?.availability === "priced" ? resolvedPrice.amountMinor : undefined, price_currency: "EGP", price_status: "current", image, stock: selectedVariant.stock }, qty, { showPrompt: false });
     trackMetaEvent("AddToCart", productMetaParams({ id: selectedVariant.id, price, quantity: qty }));
     trackStoreEvent("add_to_cart");
     router.push("/checkout");
@@ -75,9 +103,9 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
         </h1>
 
         <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="text-4xl font-extrabold leading-none tracking-tight text-brand sm:text-5xl">
+          {priceUnavailable ? <span className="text-lg font-semibold text-fg-dim">{t.product.pricing.unavailable}</span> : <span className="text-4xl font-extrabold leading-none tracking-tight text-brand sm:text-5xl">
             {formatPrice(price, lang)}
-          </span>
+          </span>}
           {hasSale && (
             <>
               <span className="text-lg font-medium text-fg-dim line-through">
@@ -88,7 +116,9 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
               </span>
             </>
           )}
+          {resolvedPrice?.availability === "priced" && resolvedPrice.isDerived && <span className="text-xs font-medium text-fg-dim">{t.product.pricing.derived}</span>}
         </div>
+        {repriceFailed && <p className="mt-2 text-sm text-red-700">{t.cart.repriceRetry}</p>}
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {out ? (
@@ -109,10 +139,12 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
           const units = variant.packaging_units.filter((unit) => unit.is_active && unit.is_sellable);
           setSelectedId(variant.id);
           setSelectedUnitId((units.find((unit) => unit.is_default_sale_unit) ?? units[0])?.id ?? "");
+          setLivePrice(null);
+          setRepriceFailed(false);
           setQty(1);
         }} />
 
-        <SellableUnitSelector units={selectedVariant?.packaging_units ?? []} selectedId={selectedUnit?.id ?? ""} onChange={(unit) => { setSelectedUnitId(unit.id); setQty(1); }} lang={lang} />
+        <SellableUnitSelector units={selectedVariant?.packaging_units ?? []} selectedId={selectedUnit?.id ?? ""} onChange={(unit) => { setSelectedUnitId(unit.id); setLivePrice(null); setRepriceFailed(false); setQty(1); }} lang={lang} />
 
         {selectedVariant?.sku && <p className="mt-3 text-xs text-fg-dim">SKU: {selectedVariant.sku}</p>}
 
@@ -170,7 +202,7 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
               {qty} × {selectedUnit ? (ar ? selectedUnit.label_ar : selectedUnit.label_en) : (ar ? "قطعة" : "item")}
             </p>
             <p className="text-lg font-bold leading-tight text-brand">
-              {formatPrice(price * qty, lang)}
+              {priceUnavailable ? t.product.pricing.unavailable : formatPrice(price * qty, lang)}
             </p>
           </div>
           <button

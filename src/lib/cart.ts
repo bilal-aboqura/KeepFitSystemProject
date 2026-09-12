@@ -17,6 +17,9 @@ export interface CartItem {
   name_en: string;
   name_ar: string;
   price: number;
+  price_minor?: string;
+  price_currency?: "EGP";
+  price_status?: "current" | "changed" | "unavailable";
   image: string;
   quantity: number;
   stock?: number;
@@ -140,4 +143,45 @@ export function removeFromCart(id: string): void {
 
 export function clearCart(): void {
   commit([]);
+}
+
+export interface CartRepriceResult {
+  variantId: string;
+  sellableUnitId: string;
+  availability: "priced" | "unavailable";
+  amountMinor?: string;
+  displayAmount?: string;
+}
+
+export function applyCartReprice(results: CartRepriceResult[]) {
+  const byTarget = new Map(results.map((result) => [`${result.variantId}:${result.sellableUnitId}`, result]));
+  let changed = false;
+  const items = readAll().map((item) => {
+    if (!item.variant_id || !item.sellable_unit_id) return item;
+    const result = byTarget.get(`${item.variant_id}:${item.sellable_unit_id}`);
+    if (!result) return item;
+    if (result.availability === "unavailable") {
+      if (item.price_status !== "unavailable") changed = true;
+      return { ...item, price_status: "unavailable" as const };
+    }
+    const nextPrice = Number(result.displayAmount);
+    const priceChanged = item.price_minor !== undefined && item.price_minor !== result.amountMinor;
+    if (item.price !== nextPrice || item.price_minor !== result.amountMinor || item.price_status !== (priceChanged ? "changed" : "current")) changed = true;
+    return { ...item, price: nextPrice, price_minor: result.amountMinor, price_currency: "EGP" as const, price_status: priceChanged ? "changed" as const : "current" as const };
+  });
+  if (changed) commit(items);
+  return changed;
+}
+
+export async function repriceCart(items: CartItem[]) {
+  const canonical = items.filter((item) => item.variant_id && item.sellable_unit_id);
+  if (canonical.length !== items.length) throw new Error("Cart contains a legacy item");
+  const response = await fetch("/api/pricing/reprice", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ items: canonical.map((item) => ({ variant_id: item.variant_id, sellable_unit_id: item.sellable_unit_id, quantity: item.quantity })) }),
+  });
+  const body = await response.json();
+  if (!response.ok && response.status !== 409) throw new Error("Cart pricing is unavailable");
+  return applyCartReprice(body.items ?? []);
 }

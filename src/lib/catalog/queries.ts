@@ -2,7 +2,7 @@ import "server-only";
 import { getSupabaseServerClient, getSupabaseServiceClient } from "@/lib/supabase/server";
 import type { CatalogMedia, CatalogProduct, CatalogVariant } from "./types";
 import { catalogDatabaseError } from "./errors";
-import { deriveCompatibilityUnitPrice } from "@/lib/pricing";
+import { deriveCompatibilityUnitPrice } from "@/lib/pricing/legacy-adjustments";
 import { mapPackagingUnit } from "./packaging-commands";
 
 const productProjection = `

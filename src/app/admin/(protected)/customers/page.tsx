@@ -8,13 +8,16 @@ import { AdminSectionCard } from "@/components/admin/section-card";
 import { AdminStatCard } from "@/components/admin/stat-card";
 import { CustomerTypeAssignment } from "@/components/admin/customer-type-assignment";
 import { listCustomerTypes } from "@/lib/customers/customer-types";
+import { listPriceLists } from "@/lib/pricing/commands";
+import { CustomerPriceRules } from "@/components/admin/customer-price-rules";
 
 export default async function AdminCustomersPage() {
   const lang = await getLang();
   const ar = lang === "ar";
-  const [customers, customerTypes] = await Promise.all([
+  const [customers, customerTypes, priceLists] = await Promise.all([
     adminListCustomers(),
     listCustomerTypes(),
+    listPriceLists().catch(() => []),
   ]);
 
   const totalCustomers = customers.length;
@@ -120,12 +123,15 @@ export default async function AdminCustomersPage() {
                     </td>
                     <td className="px-5 py-4 sm:px-6">
                       {customer.is_persistent && customer.effective_type ? (
+                        <>
                         <CustomerTypeAssignment
                           customerId={customer.id}
                           currentType={customer.effective_type}
                           types={customerTypes}
                           hasPendingRequest={Boolean(customer.pending_request_id)}
                         />
+                        <CustomerPriceRules customerId={customer.id} lists={priceLists as never[]} lang={lang} />
+                        </>
                       ) : null}
                     </td>
                   </tr>

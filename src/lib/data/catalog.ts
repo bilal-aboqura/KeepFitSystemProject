@@ -1,6 +1,10 @@
+import "server-only";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getCatalogProductBySlug, listStorefrontProducts } from "@/lib/catalog/queries";
 import type { CatalogMedia, CatalogProduct, CatalogVariant, ProductSpecification } from "@/lib/catalog/types";
+import { getCurrentPricingContext } from "@/lib/pricing/context";
+import { projectPublicPrice } from "@/lib/pricing/public-projection";
+import { resolvePrices } from "@/lib/pricing/resolver";
 
 export interface ProductCard {
   id: string;
@@ -14,6 +18,8 @@ export interface ProductCard {
   stock: number;
   default_variant?: CatalogVariant | null;
   variant_count?: number;
+  price_available: boolean;
+  has_price_range: boolean;
 }
 
 export interface ProductDetail extends ProductCard {
@@ -32,21 +38,59 @@ export interface ProductDetail extends ProductCard {
   specifications: ProductSpecification[];
 }
 
+async function applyCurrentPricing(products: CatalogProduct[]) {
+  const targets = products.flatMap((product) => product.variants.flatMap((variant) => variant.packaging_units
+    .filter((unit) => unit.is_active && unit.is_sellable)
+    .map((unit) => ({ variantId: variant.id, sellableUnitId: unit.id }))));
+  if (!targets.length) return products;
+  try {
+    const context = await getCurrentPricingContext();
+    const prices = await resolvePrices({ customerContext: context, targets });
+    const byTarget = new Map(prices.map((price) => [`${price.variantId}:${price.sellableUnitId}`, projectPublicPrice(price)]));
+    for (const product of products) {
+      for (const variant of product.variants) {
+        for (const unit of variant.packaging_units) {
+          unit.resolved_price = byTarget.get(`${variant.id}:${unit.id}`) ?? {
+            variantId: variant.id, sellableUnitId: unit.id, availability: "unavailable", code: "PRICE_UNAVAILABLE",
+          };
+          if (unit.resolved_price.availability === "priced") {
+            unit.compatibility_price = Number(unit.resolved_price.displayAmount);
+            unit.compatibility_compare_at_price = null;
+          }
+        }
+      }
+    }
+  } catch {
+    for (const product of products) for (const variant of product.variants) for (const unit of variant.packaging_units) {
+      unit.resolved_price = { variantId: variant.id, sellableUnitId: unit.id, availability: "unavailable", code: "PRICE_UNAVAILABLE" };
+    }
+  }
+  return products;
+}
+
 function toProductCard(product: CatalogProduct): ProductCard {
   const defaultVariant = product.variants.find((variant) => variant.is_default) ?? product.variants[0] ?? null;
   const unitPrice = (variant: CatalogVariant) => {
     const unit = variant.packaging_units.find((item) => item.is_active && item.is_sellable && item.is_default_sale_unit)
       ?? variant.packaging_units.find((item) => item.is_active && item.is_sellable);
-    return { price: unit?.compatibility_price ?? variant.base_price, compareAt: unit?.compatibility_compare_at_price ?? variant.compare_at_price };
+    const resolved = unit?.resolved_price;
+    return resolved?.availability === "priced"
+      ? { price: Number(resolved.displayAmount), compareAt: null }
+      : { price: Number.POSITIVE_INFINITY, compareAt: null };
   };
-  const lowest = [...product.variants].sort((a, b) => unitPrice(a).price - unitPrice(b).price)[0] ?? defaultVariant;
+  const pricedVariants = product.variants.filter((variant) => Number.isFinite(unitPrice(variant).price));
+  const lowest = [...pricedVariants].sort((a, b) => unitPrice(a).price - unitPrice(b).price)[0] ?? null;
   const lowestPrice = lowest ? unitPrice(lowest) : { price: 0, compareAt: null };
+  const distinctPrices = new Set(product.variants.flatMap((variant) => variant.packaging_units
+    .filter((unit) => unit.is_active && unit.is_sellable && unit.resolved_price?.availability === "priced")
+    .map((unit) => unit.resolved_price?.availability === "priced" ? unit.resolved_price.amountMinor : "")));
   return {
     id: product.id, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar,
     price: lowestPrice.price, compare_at_price: lowestPrice.compareAt,
     images: product.media.map((media) => media.public_url), is_featured: product.is_featured,
     stock: product.variants.reduce((sum, variant) => sum + variant.stock, 0),
     default_variant: defaultVariant, variant_count: product.variants.length,
+    price_available: Boolean(lowest), has_price_range: distinctPrices.size > 1,
   };
 }
 
@@ -73,7 +117,7 @@ const STORE_CATEGORY_FALLBACKS: CategoryInfo[] = [
 
 /** Featured + recent active products for the homepage. */
 export async function getFeaturedProducts(limit = 8): Promise<ProductCard[]> {
-  return (await listStorefrontProducts({ limit })).map(toProductCard);
+  return (await applyCurrentPricing(await listStorefrontProducts({ limit }))).map(toProductCard);
 }
 
 export async function getCategoryBySlug(
@@ -118,7 +162,7 @@ export async function getProductsByCategory(
   const category = await getCategoryBySlug(categorySlug);
   if (!category) return [];
   if (!category.id) return [];
-  return (await listStorefrontProducts({ categoryId: category.id })).map(toProductCard);
+  return (await applyCurrentPricing(await listStorefrontProducts({ categoryId: category.id }))).map(toProductCard);
 }
 
 export async function getProductBySlug(
@@ -126,6 +170,7 @@ export async function getProductBySlug(
 ): Promise<ProductDetail | null> {
   const product = await getCatalogProductBySlug(slug);
   if (!product) return null;
+  await applyCurrentPricing([product]);
   const card = toProductCard(product);
   return {
     ...card, sku: card.default_variant?.sku ?? null,
@@ -143,7 +188,7 @@ export async function getRelatedProducts(
   limit = 4,
 ): Promise<ProductCard[]> {
   if (!product.category_id) return [];
-  return (await listStorefrontProducts({ categoryId: product.category_id, limit: limit + 1 }))
+  return (await applyCurrentPricing(await listStorefrontProducts({ categoryId: product.category_id, limit: limit + 1 })))
     .filter((item) => item.id !== product.id).slice(0, limit).map(toProductCard);
 }
 
@@ -202,7 +247,7 @@ export async function resolveBundles(): Promise<ResolvedBundle[]> {
   if (!supabase) return [];
 
   const configs = await getBundleConfigs();
-  const catalogProducts = new Map((await listStorefrontProducts()).map((product) => [product.id, toProductCard(product)]));
+  const catalogProducts = new Map((await applyCurrentPricing(await listStorefrontProducts())).map((product) => [product.id, toProductCard(product)]));
   const results: ResolvedBundle[] = [];
 
   for (const config of configs) {
@@ -258,7 +303,7 @@ export async function getCheapestInCategory(
 ): Promise<ProductCard | null> {
   const category = await getCategoryBySlug(categorySlug);
   if (!category) return null;
-  const products = (await listStorefrontProducts({ categoryId: category.id })).map(toProductCard)
+  const products = (await applyCurrentPricing(await listStorefrontProducts({ categoryId: category.id }))).map(toProductCard)
     .filter((product) => product.stock > 0)
     .sort((a, b) => a.price - b.price);
   return products[0] ?? null;
@@ -527,5 +572,5 @@ export async function getSocialStats(): Promise<SocialStats> {
 /** Lightweight search across the active catalog. */
 export async function searchProducts(query: string): Promise<ProductCard[]> {
   if (!query.trim()) return [];
-  return (await listStorefrontProducts({ query, limit: 20 })).map(toProductCard);
+  return (await applyCurrentPricing(await listStorefrontProducts({ query, limit: 20 }))).map(toProductCard);
 }

@@ -13,7 +13,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
   const { t, lang } = useLang();
   const name = lang === "ar" ? product.name_ar : product.name_en;
   const image = product.images?.[0] ?? "/keepfit-logo.png";
-  const outOfStock = product.stock <= 0;
+  const outOfStock = product.stock <= 0 || !product.price_available;
   const ar = lang === "ar";
   const price = Number(product.price);
   const compareAtPrice = Number(product.compare_at_price);
@@ -43,6 +43,9 @@ export function ProductCard({ product }: { product: ProductCardData }) {
       name_en: product.name_en,
       name_ar: product.name_ar,
       price: Number(quickUnit.compatibility_price ?? price),
+      price_minor: quickUnit.resolved_price?.availability === "priced" ? quickUnit.resolved_price.amountMinor : undefined,
+      price_currency: quickUnit.resolved_price?.availability === "priced" ? quickUnit.resolved_price.currency : undefined,
+      price_status: quickUnit.resolved_price?.availability === "priced" ? "current" : "unavailable",
       image,
       stock: quickVariant.stock,
       variant_label_en: quickVariant.label_en,
@@ -94,7 +97,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
         {outOfStock && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <span className="text-sm font-semibold text-white/80">
-              {ar ? "غير متوفر" : "Out of stock"}
+              {product.stock <= 0 ? t.product.outOfStock : t.product.pricing.unavailable}
             </span>
           </div>
         )}
@@ -106,9 +109,9 @@ export function ProductCard({ product }: { product: ProductCardData }) {
           {name}
         </h3>
         <div className="mt-auto flex flex-wrap items-baseline gap-2 pt-2">
-          <span className="text-lg font-extrabold text-brand">
-            {formatPrice(price, lang)}
-          </span>
+          {product.price_available ? <span className="text-lg font-extrabold text-brand">
+            {product.has_price_range ? `${t.product.pricing.from} ` : ""}{formatPrice(price, lang)}
+          </span> : <span className="text-sm font-semibold text-fg-dim">{t.product.pricing.unavailable}</span>}
           {hasSale && (
             <>
               <span className="text-xs text-fg-dim line-through">
