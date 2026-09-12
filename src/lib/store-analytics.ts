@@ -2,7 +2,7 @@
 
 export type StoreEvent = "page_view" | "add_to_cart" | "initiate_checkout";
 
-const VISITOR_ID_KEY = "xeemo-visitor-id";
+const VISITOR_ID_KEY = "keepfit-visitor-id";
 
 function visitorId(): string | null {
   try {

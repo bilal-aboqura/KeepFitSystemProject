@@ -74,7 +74,7 @@ function buildTelegramMessage(order: OrderForConfirmation): string {
 export function buildOwnerWhatsAppUrl(order: OrderForConfirmation): string {
   if (!WHATSAPP_NUMBER) return "";
   const lines = [
-    `🛒 *New Xeemo Order ${order.order_number}*`,
+    `🛒 *New KeepFit Order ${order.order_number}*`,
     `Customer: ${order.customer_name}`,
     `Phone: ${order.customer_phone}`,
     `Address: ${order.city}, ${order.governorate} — ${order.address}`,

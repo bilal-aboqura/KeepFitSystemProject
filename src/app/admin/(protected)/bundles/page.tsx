@@ -67,7 +67,7 @@ export default function AdminBundlesPage() {
         desc_ar: "",
         product_ids: [],
         bundle_price: 0,
-        image: "/images/placeholder.webp",
+        image: "/keepfit-logo.png",
         active: true,
         sort_order: prev.length,
       },

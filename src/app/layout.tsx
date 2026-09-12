@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans_Arabic } from "next/font/google";
+import { Alexandria, Almarai, IBM_Plex_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import Script from "next/script";
@@ -14,50 +14,51 @@ const ibmPlexSansArabic = IBM_Plex_Sans_Arabic({
   display: "swap",
 });
 
+const alexandria = Alexandria({
+  subsets: ["arabic", "latin"],
+  variable: "--font-alexandria",
+  display: "swap",
+});
+
+const almarai = Almarai({
+  subsets: ["arabic", "latin"],
+  variable: "--font-almarai",
+  weight: ["400", "700", "800"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000",
   ),
   title: {
-    default: "اكسيمو — كيماويات العناية بالسيارات | Xeemo Egypt",
-    template: "%s | Xeemo اكسيمو",
+    default: "KeepFit Supplement | مكملات غذائية ورياضية",
+    template: "%s | KeepFit Supplement",
   },
   description:
-    "منتجات تلميع وعناية بالسيارات والموتوسيكلات والسجاد — صناعة مصرية. الدفع عند الاستلام. شحن مجاني فوق 600 ج.م. اطلب اونلاين دلوقتي.",
+    "تسوّق المكملات الغذائية والرياضية من KeepFit Supplement واختر المنتجات المناسبة لهدفك.",
   keywords: [
-    "اكسيمو",
-    "Xeemo",
-    "عناية بالسيارات",
-    "تلميع سيارات",
-    "كيماويات سيارات",
-    "داشبورد شاينر",
-    "سنو فوم",
-    "تاير شاينر",
-    "منظف محرك",
-    "معطر جو",
-    "منظف سجاد",
-    "car care Egypt",
-    "car chemicals",
-    "dashboard shiner",
-    "snow foam",
-    "صناعة مصرية",
-    "الدفع عند الاستلام",
+    "KeepFit Supplement",
+    "مكملات غذائية",
+    "مكملات رياضية",
+    "sports supplements Egypt",
+    "protein",
+    "creatine",
+    "fitness nutrition",
   ],
-  authors: [{ name: "Xeemo" }],
+  authors: [{ name: "KeepFit Supplement" }],
   openGraph: {
     type: "website",
     locale: "ar_EG",
     alternateLocale: "en_US",
-    siteName: "Xeemo اكسيمو",
-    title: "اكسيمو — كيماويات العناية بالسيارات | Xeemo Egypt",
-    description:
-      "منتجات تلميع وعناية بالسيارات — صناعة مصرية. الدفع عند الاستلام. شحن مجاني فوق 600 ج.م.",
+    siteName: "KeepFit Supplement",
+    title: "KeepFit Supplement | مكملات غذائية ورياضية",
+    description: "اختيارات من المكملات الغذائية والرياضية تناسب أهدافك المختلفة.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "اكسيمو — كيماويات العناية بالسيارات | Xeemo",
-    description:
-      "منتجات العناية بالسيارات صناعة مصرية. الدفع عند الاستلام متاح.",
+    title: "KeepFit Supplement",
+    description: "مكملاتك وأساسياتك الرياضية في مكان واحد.",
   },
   robots: {
     index: true,
@@ -75,7 +76,7 @@ export default async function RootLayout({
       lang={lang}
       dir={lang === "ar" ? "rtl" : "ltr"}
       suppressHydrationWarning
-      className={`${ibmPlexSansArabic.variable} h-full antialiased scroll-smooth`}
+      className={`${ibmPlexSansArabic.variable} ${alexandria.variable} ${almarai.variable} h-full antialiased scroll-smooth`}
     >
       <body className="min-h-full flex flex-col">
         <Script id="meta-pixel" strategy="beforeInteractive">

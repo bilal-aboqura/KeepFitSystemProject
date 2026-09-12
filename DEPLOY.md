@@ -1,4 +1,4 @@
-# Deployment Guide — Xeemo Ecommerce
+# Deployment Guide — KeepFit Supplement
 
 This guide covers deploying to a VPS (DigitalOcean / Linode / Hetzner / etc.)
 with Docker + Nginx + SSL. Estimated time: 30–60 minutes.
@@ -9,7 +9,7 @@ with Docker + Nginx + SSL. Estimated time: 30–60 minutes.
 
 - A VPS running **Ubuntu 22.04+** with at least **1 GB RAM** (2 GB recommended)
 - Root or sudo access
-- Your domain (`xeemo-eg.com`) DNS A-record pointing to the VPS IP
+- Your domain (`keepfitsupplement.com`) DNS A-record pointing to the VPS IP
 - Docker + Docker Compose installed on the VPS
 - Your `.env.production` file ready (copy from `.env.example`, fill real values)
 
@@ -23,7 +23,7 @@ ssh root@YOUR_SERVER_IP
 curl -fsSL https://get.docker.com | sh
 
 # Create the app directory
-mkdir -p /opt/xeemo && cd /opt/xeemo
+mkdir -p /opt/keepfit && cd /opt/keepfit
 ```
 
 ## 2. Upload the code
@@ -32,16 +32,16 @@ From your local machine:
 
 ```bash
 # Option A: git clone (if you push to a repo)
-git clone YOUR_REPO_URL /opt/xeemo
+git clone YOUR_REPO_URL /opt/keepfit
 
 # Option B: rsync (if not using git)
 rsync -avz --exclude node_modules --exclude .next --exclude .git \
-  ./xeemo-ecom/ root@YOUR_SERVER_IP:/opt/xeemo/
+  ./keepfit-supplement/ root@YOUR_SERVER_IP:/opt/keepfit/
 ```
 
 ## 3. Create `.env.production`
 
-On the server, in `/opt/xeemo`:
+On the server, in `/opt/keepfit`:
 
 ```bash
 cp .env.example .env.production
@@ -51,7 +51,7 @@ nano .env.production
 Fill in all real values. **Critical changes from dev:**
 
 ```env
-NEXT_PUBLIC_SITE_URL=https://xeemo-eg.com
+NEXT_PUBLIC_SITE_URL=https://keepfitsupplement.com
 KASHIER_TESTMODE=false          # ← switch to LIVE
 # Optionally set KASHIER_WEBHOOK_SECRET if Kashier provides one
 ```
@@ -78,18 +78,18 @@ node --env-file=.env.production scripts/seed-admin.mjs
 apt-get install -y certbot
 
 # Get certs (stop nginx first if it's running)
-certbot certonly --standalone -d xeemo-eg.com -d www.xeemo-eg.com
+certbot certonly --standalone -d keepfitsupplement.com -d www.keepfitsupplement.com
 
 # Copy certs to the nginx certs directory
-mkdir -p /opt/xeemo/nginx/certs
-cp /etc/letsencrypt/live/xeemo-eg.com/fullchain.pem /opt/xeemo/nginx/certs/
-cp /etc/letsencrypt/live/xeemo-eg.com/privkey.pem  /opt/xeemo/nginx/certs/
+mkdir -p /opt/keepfit/nginx/certs
+cp /etc/letsencrypt/live/keepfitsupplement.com/fullchain.pem /opt/keepfit/nginx/certs/
+cp /etc/letsencrypt/live/keepfitsupplement.com/privkey.pem  /opt/keepfit/nginx/certs/
 ```
 
 ## 6. Build and start
 
 ```bash
-cd /opt/xeemo
+cd /opt/keepfit
 docker compose up -d --build
 ```
 
@@ -100,14 +100,14 @@ docker compose ps
 docker compose logs -f web    # see Next.js startup logs
 ```
 
-Visit `https://xeemo-eg.com` — it should be live.
+Visit `https://keepfitsupplement.com` — it should be live.
 
 ## 7. Configure Kashier webhook
 
 In your Kashier dashboard:
 
 1. Go to **Settings → Webhooks**
-2. Add webhook URL: `https://xeemo-eg.com/api/kashier/webhook`
+2. Add webhook URL: `https://keepfitsupplement.com/api/kashier/webhook`
 3. Note the webhook secret (if provided) and add it to `.env.production` as
    `KASHIER_WEBHOOK_SECRET`
 4. Restart: `docker compose restart web`
@@ -120,13 +120,13 @@ In your Kashier dashboard:
 BOSTA_API_KEY=your-bosta-api-key
 BOSTA_WEBHOOK_SECRET=generate-a-long-random-secret
 BOSTA_PICKUP_HAS_FRAGILE_ITEMS=false
-BOSTA_PICKUP_NOTES=Xeemo confirmed orders
+BOSTA_PICKUP_NOTES=KeepFit confirmed orders
 CRON_SECRET=generate-another-long-random-secret
 ```
 
 2. In the Bosta dashboard, add a default pickup location with a default contact
    name and phone number. Shipment creation sends
-   `https://xeemo-eg.com/api/webhooks/bosta` to Bosta with the authenticated
+   `https://keepfitsupplement.com/api/webhooks/bosta` to Bosta with the authenticated
    webhook header automatically.
 
 3. Run the database migration and restart the app:
@@ -141,7 +141,7 @@ docker compose up -d --build
 
 ```cron
 CRON_TZ=Africa/Cairo
-0 0 * * * curl -fsS -H "Authorization: Bearer REPLACE_WITH_CRON_SECRET" https://xeemo-eg.com/api/cron/bosta-pickup/daily >/dev/null
+0 0 * * * curl -fsS -H "Authorization: Bearer REPLACE_WITH_CRON_SECRET" https://keepfitsupplement.com/api/cron/bosta-pickup/daily >/dev/null
 ```
 
 5. Schedule a status refresh every 15 minutes. Bosta webhooks update orders
@@ -150,7 +150,7 @@ An in-transit shipment sets the order to `shipped`; a delivered shipment sets it
 to `delivered` and marks COD as paid.
 
 ```cron
-*/15 * * * * curl -fsS -H "Authorization: Bearer REPLACE_WITH_CRON_SECRET" https://xeemo-eg.com/api/cron/shipment-status/quarter-hour >/dev/null
+*/15 * * * * curl -fsS -H "Authorization: Bearer REPLACE_WITH_CRON_SECRET" https://keepfitsupplement.com/api/cron/shipment-status/quarter-hour >/dev/null
 ```
 
 Admins can create or refresh a shipment and download its AWB from the order
@@ -183,7 +183,7 @@ alert only after Kashier confirms successful payment.
 crontab -e
 
 # Add this line (renews monthly, reloads nginx):
-0 3 1 * * certbot renew --quiet --post-hook "cp /etc/letsencrypt/live/xeemo-eg.com/*.pem /opt/xeemo/nginx/certs/ && docker compose -f /opt/xeemo/docker-compose.yml restart nginx"
+0 3 1 * * certbot renew --quiet --post-hook "cp /etc/letsencrypt/live/keepfitsupplement.com/*.pem /opt/keepfit/nginx/certs/ && docker compose -f /opt/keepfit/docker-compose.yml restart nginx"
 ```
 
 ## 11. Switch Kashier to LIVE
@@ -232,7 +232,7 @@ npm ci
 npm run build
 
 # Start
-pm2 start npm --name "xeemo" -- start
+pm2 start npm --name "keepfit" -- start
 pm2 save
 pm2 startup    # auto-start on boot
 

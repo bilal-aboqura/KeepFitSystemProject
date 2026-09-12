@@ -49,13 +49,13 @@ export function Footer() {
           <div>
             <div className="flex items-center gap-3">
               <Image
-                src="/logo.png"
+                src="/keepfit-logo.png"
                 alt={t.brand}
-                width={120}
-                height={32}
-                className="h-8 w-auto object-contain brightness-0 invert"
+                width={816}
+                height={768}
+                className="h-20 w-24 object-contain"
               />
-              <span className="text-lg font-bold tracking-tight">{t.brand}</span>
+              <span className="text-lg font-black tracking-tight" dir="ltr">KeepFit Supplement</span>
             </div>
             <p className="mt-3 text-sm leading-7 text-white/70">{t.tagline}</p>
             <div className="mt-4 flex gap-2">
@@ -65,19 +65,18 @@ export function Footer() {
                 icon={<MessageCircle size={16} />}
               />
               <SocialLink
-                href="https://www.facebook.com/officialxeemo"
-                label="Facebook"
+                href="https://keepfitsupplement.com"
+                label="KeepFit Supplement website"
                 icon={<ExternalLink size={16} />}
               />
             </div>
           </div>
 
           <FooterColumn title={t.nav.products}>
-            <FooterLink href="/category/carcare">{t.nav.carcare}</FooterLink>
-            <FooterLink href="/category/motocare">{t.nav.motocare}</FooterLink>
-            <FooterLink href="/category/carpets">{t.nav.carpets}</FooterLink>
-            <FooterLink href="/category/air-freshener">{t.nav.freshener}</FooterLink>
-            <FooterLink href="/category/home-care">{t.nav.homecare}</FooterLink>
+            <FooterLink href="/#categories">{t.home.categories}</FooterLink>
+            <FooterLink href="/#bestsellers">{t.home.featured}</FooterLink>
+            <FooterLink href="/cart">{t.nav.cart}</FooterLink>
+            <FooterLink href="/account">{t.account.title}</FooterLink>
           </FooterColumn>
 
           <FooterColumn title={t.footer.legal}>
@@ -88,7 +87,7 @@ export function Footer() {
 
           <FooterColumn title={t.footer.contactInfo}>
             <ContactRow icon={<Phone size={15} />} label={t.footer.phone} value="+20 115 030 1033" href="tel:+201150301033" ltr />
-            <ContactRow icon={<Mail size={15} />} label={t.footer.email} value="mohamed.xeemo@gmail.com" href="mailto:mohamed.xeemo@gmail.com" />
+            <ContactRow icon={<Mail size={15} />} label="Website" value="keepfitsupplement.com" href="https://keepfitsupplement.com" ltr />
             <ContactRow icon={<MapPin size={15} />} label={t.footer.address} value={t.footer.addressValue} />
           </FooterColumn>
         </div>

@@ -24,7 +24,7 @@ const LanguageContext = createContext<LanguageContextValue | undefined>(
 );
 
 const STORAGE_KEY = "lang";
-const CHANGE_EVENT = "xeemo:lang-change";
+const CHANGE_EVENT = "keepfit:lang-change";
 
 function readLang(): Lang {
   const v = localStorage.getItem(STORAGE_KEY);

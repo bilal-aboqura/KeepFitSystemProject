@@ -14,10 +14,10 @@ export async function generateMetadata({
   const name = category.name_en;
   return {
     title: name,
-    description: `Shop ${name} products from Xeemo. Made in Egypt.`,
+    description: `Shop ${name} products from KeepFit Supplement.`,
     openGraph: {
-      title: `${name} | Xeemo`,
-      description: `Shop ${name} products from Xeemo.`,
+      title: `${name} | KeepFit Supplement`,
+      description: `Shop ${name} products from KeepFit Supplement.`,
     },
   };
 }

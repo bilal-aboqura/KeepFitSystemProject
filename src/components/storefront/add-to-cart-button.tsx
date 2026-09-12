@@ -21,7 +21,7 @@ export function AddToCartButton({ product, quantity = 1, variant = "primary", cl
 
   function handle() {
     if (out) return;
-    addToCart({ id: product.id, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, price: Number(product.price), image: product.images?.[0] ?? product.image ?? "/images/placeholder.webp", stock: product.stock }, quantity);
+    addToCart({ id: product.id, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, price: Number(product.price), image: product.images?.[0] ?? product.image ?? "/keepfit-logo.png", stock: product.stock }, quantity);
     trackMetaEvent("AddToCart", productMetaParams({
       id: product.id,
       price: Number(product.price),

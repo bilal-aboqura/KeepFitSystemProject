@@ -66,7 +66,7 @@ export function CustomerTypeRequest({ state }: { state: CustomerTypeState }) {
 
   return (
     <div className="grid gap-5">
-      <section className="rounded-2xl border border-border bg-white/70 p-5 sm:p-6">
+      <section className="rounded-2xl border border-border bg-surface/70 p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-fg-dim">{copy.effective}</p>
@@ -97,7 +97,7 @@ export function CustomerTypeRequest({ state }: { state: CustomerTypeState }) {
           </div>
         </section>
       ) : state.can_request ? (
-        <section className="rounded-2xl border border-border bg-white p-5 shadow-sm sm:p-6">
+        <section className="rounded-2xl border border-border bg-surface p-5 sm:p-6">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand/10 text-brand">
               <Building2 size={21} />
@@ -115,7 +115,7 @@ export function CustomerTypeRequest({ state }: { state: CustomerTypeState }) {
               <select
                 value={selectedType}
                 onChange={(event) => setSelectedType(event.target.value as CustomerTypeCode)}
-                className="min-h-11 rounded-xl border border-border bg-white px-3 py-2.5"
+                className="min-h-11 rounded-xl border border-border bg-ink px-3 py-2.5"
               >
                 {state.available_types.map((type) => (
                   <option key={type.id} value={type.code}>{typeName(type)}</option>
@@ -124,27 +124,27 @@ export function CustomerTypeRequest({ state }: { state: CustomerTypeState }) {
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-fg sm:col-span-2">
               {selectedIsGym ? copy.gymName : copy.businessName}
-              <input required name="business_name" maxLength={160} className="min-h-11 rounded-xl border border-border bg-white px-3 py-2.5" />
+              <input required name="business_name" maxLength={160} className="min-h-11 rounded-xl border border-border bg-ink px-3 py-2.5" />
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-fg">
               {copy.businessPhone}
-              <input name="business_phone" inputMode="tel" dir="ltr" className="min-h-11 rounded-xl border border-border bg-white px-3 py-2.5" />
+              <input name="business_phone" inputMode="tel" dir="ltr" className="min-h-11 rounded-xl border border-border bg-ink px-3 py-2.5" />
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-fg">
               {copy.governorate}
-              <input name="governorate" maxLength={100} className="min-h-11 rounded-xl border border-border bg-white px-3 py-2.5" />
+              <input name="governorate" maxLength={100} className="min-h-11 rounded-xl border border-border bg-ink px-3 py-2.5" />
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-fg sm:col-span-2">
               {copy.city}
-              <input name="city" maxLength={100} className="min-h-11 rounded-xl border border-border bg-white px-3 py-2.5" />
+              <input name="city" maxLength={100} className="min-h-11 rounded-xl border border-border bg-ink px-3 py-2.5" />
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-fg sm:col-span-2">
               {copy.descriptionLabel}
-              <textarea name="business_description" maxLength={1000} rows={3} className="rounded-xl border border-border bg-white px-3 py-2.5" />
+              <textarea name="business_description" maxLength={1000} rows={3} className="rounded-xl border border-border bg-ink px-3 py-2.5" />
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-fg sm:col-span-2">
               {copy.note}
-              <textarea name="customer_note" maxLength={1000} rows={3} className="rounded-xl border border-border bg-white px-3 py-2.5" />
+              <textarea name="customer_note" maxLength={1000} rows={3} className="rounded-xl border border-border bg-ink px-3 py-2.5" />
             </label>
             {error ? <p role="alert" className="text-sm text-red-600 sm:col-span-2">{error}</p> : null}
             <button disabled={saving} className="btn btn-primary min-h-11 justify-center disabled:opacity-60 sm:col-span-2" aria-busy={saving}>
@@ -154,7 +154,7 @@ export function CustomerTypeRequest({ state }: { state: CustomerTypeState }) {
         </section>
       ) : null}
 
-      <section className="rounded-2xl border border-border bg-white/70 p-5 sm:p-6">
+      <section className="rounded-2xl border border-border bg-surface/70 p-5 sm:p-6">
         <div className="flex items-center gap-2">
           <History size={19} className="text-brand" />
           <h2 className="text-lg font-bold text-fg">{copy.history}</h2>
@@ -164,7 +164,7 @@ export function CustomerTypeRequest({ state }: { state: CustomerTypeState }) {
         ) : (
           <div className="mt-4 grid gap-3">
             {state.history.map((request) => (
-              <article key={request.id} className="rounded-xl border border-border bg-white p-4">
+              <article key={request.id} className="rounded-xl border border-border bg-surface p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 font-semibold text-fg">
                     {request.status === "approved" ? <BadgeCheck size={17} className="text-emerald-600" /> : null}

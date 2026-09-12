@@ -10,7 +10,7 @@ export default async function TermsAndConditionsPage() {
         {
           title: "استخدام الموقع والطلبات",
           body: [
-            "باستخدامك لموقع Xeemo أو إتمام أي طلب، فأنت توافق على الالتزام بهذه الشروط والأحكام وكل السياسات المرتبطة بها داخل الموقع.",
+            "باستخدامك لموقع KeepFit Supplement أو إتمام أي طلب، فأنت توافق على الالتزام بهذه الشروط والأحكام وكل السياسات المرتبطة بها داخل الموقع.",
             "يجب أن تكون بيانات الطلب صحيحة وكاملة، بما يشمل الاسم ورقم الهاتف والعنوان، حتى نتمكن من تأكيد الطلب وتسليمه بشكل صحيح.",
           ],
         },
@@ -31,7 +31,7 @@ export default async function TermsAndConditionsPage() {
         {
           title: "المحتوى والملكية",
           body: [
-            "جميع النصوص والصور والشعارات والمحتوى المعروض على الموقع مملوك لـ Xeemo أو مرخص له، ولا يجوز إعادة استخدامه أو نسخه تجاريًا دون موافقة مسبقة.",
+            "جميع النصوص والصور والشعارات والمحتوى المعروض على الموقع مملوك لـ KeepFit Supplement أو مرخص له، ولا يجوز إعادة استخدامه أو نسخه تجاريًا دون موافقة مسبقة.",
             "نحتفظ بالحق في تحديث المحتوى أو تعديل المنتجات أو إيقاف أي منتج أو خدمة دون التزام مسبق.",
           ],
         },
@@ -40,7 +40,7 @@ export default async function TermsAndConditionsPage() {
         {
           title: "Website use and orders",
           body: [
-            "By using the Xeemo website or placing an order, you agree to these terms and conditions and the related policies published on the site.",
+            "By using the KeepFit Supplement website or placing an order, you agree to these terms and conditions and the related policies published on the site.",
             "Order details must be accurate and complete, including your name, mobile number, and address, so we can confirm and deliver your order correctly.",
           ],
         },
@@ -61,7 +61,7 @@ export default async function TermsAndConditionsPage() {
         {
           title: "Content and ownership",
           body: [
-            "All website content, including text, images, branding, and design assets, belongs to Xeemo or is licensed for use and may not be reused commercially without permission.",
+            "All website content, including text, images, branding, and design assets, belongs to KeepFit Supplement or is licensed for use and may not be reused commercially without permission.",
             "We reserve the right to update content, change product details, or discontinue products or services at any time.",
           ],
         },
@@ -73,8 +73,8 @@ export default async function TermsAndConditionsPage() {
       title={ar ? "الشروط والأحكام" : "Terms & Conditions"}
       intro={
         ar
-          ? "هذه الشروط تنظم استخدامك لموقع Xeemo وعمليات الشراء من خلاله. هدفنا أن تكون العلاقة واضحة وشفافة من لحظة التصفح حتى استلام الطلب."
-          : "These terms govern your use of the Xeemo website and any purchase made through it. They are designed to keep the relationship clear and transparent from browsing to delivery."
+          ? "هذه الشروط تنظم استخدامك لموقع KeepFit Supplement وعمليات الشراء من خلاله. هدفنا أن تكون العلاقة واضحة وشفافة من لحظة التصفح حتى استلام الطلب."
+          : "These terms govern your use of the KeepFit Supplement website and any purchase made through it. They are designed to keep the relationship clear and transparent from browsing to delivery."
       }
       sections={sections}
       note={

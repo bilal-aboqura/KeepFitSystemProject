@@ -121,7 +121,7 @@ async function notifyTelegram(pickup: BostaPickup, orders: BostaOrder[]) {
   form.append(
     "document",
     new Blob([awb.slice().buffer as ArrayBuffer], { type: "application/pdf" }),
-    `xeemo-bosta-${pickup.scheduledDate}.pdf`,
+    `keepfit-bosta-${pickup.scheduledDate}.pdf`,
   );
   const response = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
     method: "POST",
@@ -193,7 +193,7 @@ export async function runBostaPickupAutomation(options?: { ignoreTime?: boolean;
       hasBigItems: readyOrders.some(
         (order) => order.order_items.reduce((sum, item) => sum + item.quantity, 0) > 15,
       ),
-      notes: process.env.BOSTA_PICKUP_NOTES ?? `Xeemo automatic pickup — ${readyOrders.length} orders`,
+      notes: process.env.BOSTA_PICKUP_NOTES ?? `KeepFit automatic pickup — ${readyOrders.length} orders`,
     });
 
     const updatedOrders: BostaOrder[] = [];

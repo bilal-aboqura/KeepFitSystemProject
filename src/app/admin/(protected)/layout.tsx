@@ -24,16 +24,16 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
         <header className="sticky top-0 z-40 border-b border-border bg-white/88 backdrop-blur-xl">
           <div className="mx-auto flex h-[72px] max-w-[1680px] items-center justify-between px-5 lg:px-8">
           <Link href="/admin" className="flex items-center gap-3">
-            <Image 
-              src="/logo.png" 
-              alt="Xeemo" 
-              width={120} 
-              height={32} 
-              className="h-8 w-auto object-contain brightness-0"
+            <Image
+              src="/keepfit-logo.png"
+              alt="KeepFit Supplement"
+              width={120}
+              height={32}
+              className="h-12 w-14 object-contain"
             />
             <div className="hidden min-w-0 sm:block">
               <div className="flex items-center gap-2">
-                <span className="text-base font-bold text-fg">Xeemo</span>
+                <span className="text-base font-bold text-fg">KeepFit Supplement</span>
                 <span className="pill pill-info text-[10px]">Admin</span>
               </div>
               <p className="text-xs text-fg-dim">Store operations, catalog, and content</p>

@@ -3,188 +3,117 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
-import {
-  Menu,
-  X,
-  ShoppingBag,
-  ChevronDown,
-  Car,
-  Bike,
-  Armchair,
-  Wind,
-  House,
-  MessageCircle,
-} from "lucide-react";
+import { Menu, X, ShoppingBag, MessageCircle } from "lucide-react";
 import { useLang } from "@/components/language/provider";
 import { LanguageToggle } from "@/components/language/toggle";
 import { CartCounter } from "./cart-counter";
 
-const PRODUCT_LINKS = [
-  { href: "/category/carcare", key: "carcare" as const, Icon: Car },
-  { href: "/category/motocare", key: "motocare" as const, Icon: Bike },
-  { href: "/category/carpets", key: "carpets" as const, Icon: Armchair },
-  { href: "/category/air-freshener", key: "freshener" as const, Icon: Wind },
-  { href: "/category/home-care", key: "homecare" as const, Icon: House },
-];
-
 export function Navbar({ authenticated = false }: { authenticated?: boolean }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [open, setOpen] = useState(false);
-  const [productsOpen, setProductsOpen] = useState(false);
+  const ar = lang === "ar";
+
+  const links = [
+    { href: "/", label: t.nav.home },
+    { href: "/supplements", label: ar ? "المكملات الغذائية" : "Supplements" },
+    { href: "/performance", label: ar ? "الأداء الرياضي" : "Performance" },
+    { href: "/contact", label: t.nav.contact },
+  ];
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-ink/70 backdrop-blur-xl">
-      <nav className="mx-auto flex min-h-[72px] max-w-7xl flex-wrap items-center justify-between gap-2 px-5 py-2">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-3">
-          <Image 
-            src="/logo.png" 
-            alt={t.brand} 
-            width={160} 
-            height={48} 
-            className="h-12 w-auto object-contain brightness-0"
-            priority 
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050505]/92 backdrop-blur-xl">
+      <nav className="mx-auto flex min-h-[72px] max-w-[96rem] items-center justify-between gap-3 px-5 sm:px-8 lg:px-12">
+        <Link
+          href="/"
+          className="flex min-h-14 items-center gap-3 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
+          aria-label={ar ? "KeepFit Supplement — الرئيسية" : "KeepFit Supplement — Home"}
+        >
+          <Image
+            src="/keepfit-logo.png"
+            alt="KeepFit Supplement"
+            width={816}
+            height={768}
+            className="h-14 w-16 object-contain"
+            priority
           />
-          {/* <div className="hidden sm:block">
-            <span className="text-lg font-bold tracking-tight text-fg">
-              {t.brand} {t.tagline}
-            </span>
-          </div> */}
+          <span className="hidden text-start leading-none sm:block" dir="ltr">
+            <span className="block text-base font-black tracking-[-0.02em] text-white">KEEPFIT</span>
+            <span className="mt-1 block text-[10px] font-bold tracking-[0.16em] text-brand">SUPPLEMENT</span>
+          </span>
         </Link>
 
-        {/* Desktop links */}
         <div className="hidden items-center gap-1 lg:flex">
-          <Link href="/" className="rounded-lg px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/[0.04] hover:text-fg">
-            {t.nav.home}
-          </Link>
-          
-          <div
-            className="relative"
-            onMouseEnter={() => setProductsOpen(true)}
-            onMouseLeave={() => setProductsOpen(false)}
-          >
-            <button
-              type="button"
-              aria-expanded={productsOpen}
-              aria-haspopup="menu"
-              onClick={() => setProductsOpen((value) => !value)}
-              className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/[0.04] hover:text-fg"
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-bold text-white/70 transition hover:bg-white/5 hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             >
-              {t.nav.products}
-              <ChevronDown
-                size={14}
-                className={`transition ${productsOpen ? "rotate-180 opacity-100" : "opacity-50"}`}
-              />
-            </button>
-            <div
-              className={`absolute left-0 top-full w-64 pt-2 transition-all duration-200 ${
-                productsOpen
-                  ? "visible translate-y-0 opacity-100"
-                  : "invisible translate-y-1 opacity-0"
-              }`}
-            >
-              <div className="glass-elevated p-2">
-                {PRODUCT_LINKS.map(({ href, key, Icon }) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setProductsOpen(false)}
-                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-fg-muted transition hover:bg-white/[0.06] hover:text-fg"
-                  >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04]">
-                      <Icon size={16} className="text-brand" />
-                    </div>
-                    <span>{t.nav[key]}</span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <Link href="/contact" className="rounded-lg px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/[0.04] hover:text-fg">
-            {t.nav.contact}
-          </Link>
+              {link.label}
+            </Link>
+          ))}
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-2">
           <LanguageToggle />
-          <Link href={authenticated ? "/account" : "/sign-in"} className="flex min-h-11 items-center rounded-xl border border-border px-2 text-sm">{t.account.title}</Link>
-
+          <Link
+            href={authenticated ? "/account" : "/sign-in"}
+            className="hidden min-h-11 items-center rounded-lg border border-white/15 px-3 text-sm font-bold text-white/75 transition hover:border-brand hover:text-brand sm:flex"
+          >
+            {t.account.title}
+          </Link>
           <a
             href="https://wa.me/201150301033"
             target="_blank"
             rel="noreferrer"
             aria-label="WhatsApp"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-fg-dim transition hover:border-[#25D366]/40 hover:text-[#25D366]"
+            className="flex size-11 items-center justify-center rounded-lg border border-white/15 text-white/65 transition hover:border-[#25D366]/60 hover:text-[#25D366] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
-            <MessageCircle size={18} />
+            <MessageCircle size={19} />
           </a>
-
           <Link
             href="/cart"
             aria-label={t.nav.cart}
-            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-border text-fg-dim transition hover:border-brand/40 hover:text-fg"
+            className="relative flex size-11 items-center justify-center rounded-lg bg-brand text-black transition hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
-            <ShoppingBag size={18} />
+            <ShoppingBag size={19} />
             <CartCounter />
           </Link>
-
           <button
             type="button"
-            aria-label="Menu"
-            onClick={() => setOpen((v) => !v)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-fg-dim transition hover:text-fg lg:hidden"
+            aria-label={open ? (ar ? "إغلاق القائمة" : "Close menu") : (ar ? "فتح القائمة" : "Open menu")}
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+            className="flex size-11 items-center justify-center rounded-lg border border-white/15 text-white/70 transition hover:border-brand hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:hidden"
           >
-            {open ? <X size={18} /> : <Menu size={18} />}
+            {open ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </nav>
 
-      {/* Mobile menu */}
-      {open && (
-        <div className="animate-slide-down border-t border-border bg-ink/95 backdrop-blur-xl lg:hidden">
-          <div className="mx-auto flex max-w-7xl flex-col gap-1 px-5 py-4">
-            <MobileLink href="/" onClick={() => setOpen(false)}>
-              {t.nav.home}
-            </MobileLink>
-            <div className="mt-2 mb-1 px-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-fg-dim">
-              {t.nav.products}
-            </div>
-            {PRODUCT_LINKS.map(({ href, key, Icon }) => (
-              <MobileLink key={href} href={href} onClick={() => setOpen(false)}>
-                <div className="flex items-center gap-3">
-                  <Icon size={14} className="text-brand" />
-                  <span>{t.nav[key]}</span>
-                </div>
-              </MobileLink>
+      {open ? (
+        <div className="animate-slide-down border-t border-white/10 bg-[#080808] lg:hidden">
+          <div className="mx-auto flex max-w-[96rem] flex-col px-5 py-4 sm:px-8">
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setOpen(false)}
+                className="flex min-h-12 items-center border-b border-white/8 px-2 text-base font-bold text-white/75 transition hover:text-brand"
+              >
+                {link.label}
+              </Link>
             ))}
-            <MobileLink href="/contact" onClick={() => setOpen(false)}>
-              {t.nav.contact}
-            </MobileLink>
+            <Link
+              href={authenticated ? "/account" : "/sign-in"}
+              onClick={() => setOpen(false)}
+              className="mt-3 inline-flex min-h-12 items-center justify-center rounded-lg border border-brand/60 text-base font-bold text-brand"
+            >
+              {t.account.title}
+            </Link>
           </div>
         </div>
-      )}
+      ) : null}
     </header>
-  );
-}
-
-function MobileLink({
-  href,
-  children,
-  onClick,
-}: {
-  href: string;
-  children: React.ReactNode;
-  onClick?: () => void;
-}) {
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className="rounded-xl px-3 py-2.5 text-sm text-fg-muted transition hover:bg-white/[0.04] hover:text-fg"
-    >
-      {children}
-    </Link>
   );
 }

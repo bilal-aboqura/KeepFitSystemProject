@@ -26,7 +26,7 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
 
   const name = ar ? product.name_ar : product.name_en;
   const desc = ar ? product.long_desc_ar : product.long_desc_en;
-  const image = selectedVariant?.media[0]?.public_url ?? product.images?.[0] ?? "/images/placeholder.webp";
+  const image = selectedVariant?.media[0]?.public_url ?? product.images?.[0] ?? "/keepfit-logo.png";
   const price = Number(selectedVariant?.base_price ?? product.price);
   const compareAtPrice = Number(selectedVariant?.compare_at_price ?? product.compare_at_price);
   const hasSale = Number.isFinite(compareAtPrice) && compareAtPrice > price;
@@ -78,7 +78,7 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
               <span className="text-lg font-medium text-fg-dim line-through">
                 {formatPrice(compareAtPrice, lang)}
               </span>
-              <span className="rounded-full bg-brand px-3 py-1 text-sm font-bold text-white">
+              <span className="rounded-full bg-brand px-3 py-1 text-sm font-bold text-black">
                 {ar ? `وفر ${formatPrice(savings, lang)} · خصم ${discountPercent}%` : `Save ${formatPrice(savings, lang)} · ${discountPercent}% off`}
               </span>
             </>

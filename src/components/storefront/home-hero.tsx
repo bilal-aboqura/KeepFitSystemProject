@@ -1,371 +1,44 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
-import { useRef, useState, useEffect } from "react";
+import { useState } from "react";
 import {
-  ArrowRight,
-  Car,
-  Bike,
-  Armchair,
-  Wind,
-  Quote,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  RotateCcw,
-  Banknote,
-  Factory,
-  FlaskConical,
-  Flame,
-  Users,
-  Star,
-  Package,
   CheckCircle,
+  Package,
   ShoppingBag,
 } from "lucide-react";
 import { useLang } from "@/components/language/provider";
-import { formatPrice } from "@/lib/utils";
 import { addToCart } from "@/lib/cart";
-import type { ResolvedBundle, SocialStats, HeroOverrides } from "@/lib/data/catalog";
+import { formatPrice } from "@/lib/utils";
+import type { ResolvedBundle } from "@/lib/data/catalog";
 import { FadeIn, FadeInStagger } from "@/components/ui/fade-in";
-
-/* ─── Constants ───────────────────────────────────────────────────────────── */
-
-const CATEGORIES = [
-  { href: "/category/carcare", key: "carcare" as const, Icon: Car, image: "/images/carcare.webp", imageClassName: "object-[center_30%]" },
-  { href: "/category/motocare", key: "motocare" as const, Icon: Bike, image: "/images/motocare.webp", imageClassName: "object-[center_35%]" },
-  { href: "/category/carpets", key: "carpets" as const, Icon: Armchair, image: "/images/carpetscare.webp", imageClassName: "object-center" },
-  { href: "/category/air-freshener", key: "freshener" as const, Icon: Wind, image: "/images/freshnerWEBPAGE.webp", imageClassName: "object-[center_40%]" },
-];
-
-const TESTIMONIALS = [
-  { src: "/images/testimonial1.webp", name: { en: "Ahmed M.", ar: "أحمد م." }, city: { en: "Cairo", ar: "القاهرة" } },
-  { src: "/images/testimonial2.webp", name: { en: "Mohamed S.", ar: "محمد س." }, city: { en: "Giza", ar: "الجيزة" } },
-  { src: "/images/testimonial3.webp", name: { en: "Khaled A.", ar: "خالد أ." }, city: { en: "Alexandria", ar: "الإسكندرية" } },
-  { src: "/images/testimonial4.webp", name: { en: "Omar H.", ar: "عمر ح." }, city: { en: "Mansoura", ar: "المنصورة" } },
-  { src: "/images/testimonial5.webp", name: { en: "Youssef R.", ar: "يوسف ر." }, city: { en: "Tanta", ar: "طنطا" } },
-  { src: "/images/testimonial6.webp", name: { en: "Mahmoud T.", ar: "محمود ت." }, city: { en: "Cairo", ar: "القاهرة" } },
-  { src: "/images/testimonial7.webp", name: { en: "Hassan F.", ar: "حسن ف." }, city: { en: "Assiut", ar: "أسيوط" } },
-  { src: "/images/testimonial8.webp", name: { en: "Tarek B.", ar: "طارق ب." }, city: { en: "Giza", ar: "الجيزة" } },
-];
-
-const BUNDLES = [
-  {
-    key: "fullCare" as const,
-    image: "/images/gold_1l.webp",
-    originalPrice: 560,
-    bundlePrice: 470,
-    items: 4,
-  },
-  {
-    key: "proPack" as const,
-    image: "/images/foam4k.webp",
-    originalPrice: 1140,
-    bundlePrice: 950,
-    items: 3,
-  },
-  {
-    key: "motoPack" as const,
-    image: "/images/tire-1l.webp",
-    originalPrice: 560,
-    bundlePrice: 450,
-    items: 4,
-  },
-];
-
-const FAQ_ITEMS = [
-  { q: "faq1q", a: "faq1a" },
-  { q: "faq2q", a: "faq2a" },
-  { q: "faq3q", a: "faq3a" },
-  { q: "faq4q", a: "faq4a" },
-  { q: "faq5q", a: "faq5a" },
-  { q: "faq6q", a: "faq6a" },
-] as const;
-
-const DEFAULT_HERO_BACKGROUND = "/images/hs.webp";
-
-const DEFAULT_HERO_IMAGES = [
-  { src: "/images/gold_1l.webp", alt: "Dashboard Shiner Gold" },
-  { src: "/images/foam4k.webp", alt: "Active Foam 4K" },
-  { src: "/images/tireprime.webp", alt: "Tire Prime" },
-  { src: "/images/enginecleaner-1l.webp", alt: "Engine Cleaner" },
-  { src: "/images/universal-1l.webp", alt: "Universal Cleaner" },
-  { src: "/images/rims-4k.webp", alt: "Rims Cleaner" },
-  { src: "/images/candy-4k.webp", alt: "Candy Air Freshener" },
-  { src: "/images/black-ice-4k.webp", alt: "Black Ice Air Freshener" },
-];
-
-/* ─── Hero ────────────────────────────────────────────────────────────────── */
-
-export function HomeHero({ overrides }: { overrides?: HeroOverrides }) {
-  const { t, lang } = useLang();
-  const ar = lang === "ar";
-  const [activeIndex, setActiveIndex] = useState(0);
-  const o = overrides ?? {};
-  const heroBackgroundImage = o.background_image || DEFAULT_HERO_BACKGROUND;
-  const heroImages = (o.product_images?.length ? o.product_images : DEFAULT_HERO_IMAGES.map((img) => img.src))
-    .map((src, index) => ({
-      src,
-      alt: DEFAULT_HERO_IMAGES[index]?.alt ?? `Hero product ${index + 1}`,
-    }));
-  const heroImageCount = heroImages.length;
-
-  useEffect(() => {
-    if (heroImageCount <= 1) return;
-    const interval = setInterval(() => {
-      setActiveIndex((curr) => (curr + 1) % heroImageCount);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [heroImageCount]);
-
-  return (
-    <>
-      <section className="relative overflow-hidden">
-        {/* Full-width Faded Background Image */}
-        <div className="absolute inset-0 z-0">
-          <Image
-            src={heroBackgroundImage}
-            alt="Hero Background"
-            fill
-            priority
-            className="object-cover opacity-40 object-center"
-          />
-          {/* Fade overlays to blend seamlessly */}
-          <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/80 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-l from-ink via-transparent to-ink/50" />
-        </div>
-
-        <div className="pointer-events-none absolute -top-40 left-1/4 h-[500px] w-[500px] rounded-full bg-brand/[0.07] blur-[140px] z-0" />
-        <div className="pointer-events-none absolute -bottom-20 right-1/3 h-80 w-80 rounded-full bg-gold/[0.05] blur-[120px] z-0" />
-
-        <div className="relative z-10 mx-auto grid max-w-7xl gap-8 px-5 py-20 sm:py-28 lg:grid-cols-2 lg:items-center lg:gap-12 lg:py-36">
-          <div className="animate-fade-in-up">
-            <h1 className="font-heading text-4xl font-bold leading-tight tracking-tight text-fg sm:text-5xl lg:text-6xl">
-              {(ar ? o.title_ar : o.title_en) || t.home.heroTitle}
-            </h1>
-
-            <p className="mt-5 max-w-lg text-lg leading-relaxed text-fg-muted">
-              {(ar ? o.subtitle_ar : o.subtitle_en) || t.home.heroSubtitle}
-            </p>
-
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link href="#bestsellers" className="btn btn-primary gap-2">
-                {(ar ? o.cta_ar : o.cta_en) || t.home.shopNow}
-                <ArrowRight size={16} />
-              </Link>
-            </div>
-
-            {/* Trust pills below CTA */}
-            {/* <div className="mt-6 flex flex-wrap gap-2">
-              <span className="pill pill-success gap-1.5">
-                <Banknote size={11} />
-                {(ar ? o.pill_cod_ar : o.pill_cod_en) || t.product.cod}
-              </span>
-              <span className="pill pill-info gap-1.5">
-                <RotateCcw size={11} />
-                {(ar ? o.pill_returns_ar : o.pill_returns_en) || (ar ? "استرجاع 7 أيام" : "7-day returns")}
-              </span>
-              <span className="pill pill-neutral gap-1.5">
-                <Truck size={11} />
-                {(ar ? o.pill_shipping_ar : o.pill_shipping_en) || (ar ? "شحن مجاني فوق 600 ج.م" : "Free shipping 600+ EGP")}
-              </span>
-            </div> */}
-          </div>
-
-          <div className="relative hidden lg:flex lg:items-center lg:justify-center">
-            <div className="absolute inset-0 m-auto h-80 w-80 rounded-full bg-brand/[0.06] blur-[80px]" />
-            <div className="absolute inset-0 m-auto h-64 w-64 rounded-full border border-brand/10" />
-            <div className="absolute inset-0 m-auto h-[340px] w-[340px] rounded-full border border-white/[0.04]" />
-
-            <div className="relative z-10 h-80 w-80 animate-fade-in-up">
-              <div className="relative h-full w-full overflow-hidden rounded-3xl bg-white shadow-2xl shadow-black/40">
-                {heroImages.map((img, i) => {
-                  const isActive = i === activeIndex;
-                  return (
-                    <Image
-                      key={img.src}
-                      src={img.src}
-                      alt={ar ? "منتجاتنا" : img.alt}
-                      fill
-                      sizes="320px"
-                      priority={i === 0}
-                      className={`object-contain p-4 transition-all duration-1000 ease-in-out ${
-                        isActive ? "opacity-100 scale-100 blur-0" : "opacity-0 scale-90 blur-sm"
-                      }`}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="absolute -right-4 top-8 h-20 w-20 animate-fade-in overflow-hidden rounded-2xl bg-white shadow-xl shadow-black/30" style={{ animationDelay: "0.3s" }}>
-              {heroImages.map((img, i) => {
-                const isActive = i === (activeIndex + 1) % heroImages.length;
-                return (
-                  <Image
-                    key={img.src}
-                    src={img.src}
-                    alt=""
-                    fill
-                    sizes="80px"
-                    className={`object-contain p-1.5 transition-all duration-1000 ease-in-out ${
-                      isActive ? "opacity-100 scale-100 blur-0" : "opacity-0 scale-75 blur-sm"
-                    }`}
-                  />
-                );
-              })}
-            </div>
-            <div className="absolute -left-4 bottom-12 h-20 w-20 animate-fade-in overflow-hidden rounded-2xl bg-white shadow-xl shadow-black/30" style={{ animationDelay: "0.5s" }}>
-              {heroImages.map((img, i) => {
-                const isActive = i === (activeIndex + 2) % heroImages.length;
-                return (
-                  <Image
-                    key={img.src}
-                    src={img.src}
-                    alt=""
-                    fill
-                    sizes="80px"
-                    className={`object-contain p-1.5 transition-all duration-1000 ease-in-out ${
-                      isActive ? "opacity-100 scale-100 blur-0" : "opacity-0 scale-75 blur-sm"
-                    }`}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Marquee — pill-card style with edge fade */}
-      {/* <div className="relative overflow-hidden border-y border-border bg-ink py-6">
-        <div className="pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-24 bg-gradient-to-r from-ink to-transparent sm:w-40" />
-        <div className="pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-24 bg-gradient-to-l from-ink to-transparent sm:w-40" />
-        
-        <div className="marquee-track">
-          {[0, 1, 2, 3, 4, 5, 6, 7].map((copy) => (
-            <div key={copy} className="flex shrink-0 gap-4 px-2">
-              {marqueeItems.map((m, i) => (
-                <div
-                  key={`${copy}-${i}`}
-                  className="flex shrink-0 cursor-default items-center gap-2.5 whitespace-nowrap rounded-full border-2 border-brand/20 bg-white px-8 py-3.5 text-[15px] font-bold text-black shadow-lg shadow-black/5 transition-all duration-300 hover:border-brand/40 hover:shadow-xl hover:shadow-brand/10"
-                >
-                  <m.Icon size={18} className="text-brand" />
-                  {m[lang]}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div> */}
-    </>
-  );
-}
-
-/* ─── Problem / Agitation Section ─────────────────────────────────────────── */
-
-export function ProblemSection() {
-  const { t } = useLang();
-
-  return (
-    <section className="mx-auto max-w-4xl px-5 py-20 text-center">
-      <div className="mx-auto max-w-2xl">
-        <h2 className="font-heading text-2xl font-bold text-fg sm:text-3xl">
-          {t.home.problemTitle}
-        </h2>
-        <p className="mt-5 text-base leading-relaxed text-fg-muted">
-          {t.home.problemBody}
-        </p>
-        <div className="glass mt-8 border-brand/20 p-6">
-          <p className="text-sm font-medium leading-relaxed text-brand-soft">
-            {t.home.problemHighlight}
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── Trust & Guarantee Section ───────────────────────────────────────────── */
 
 export function TrustGuaranteeSection() {
   const { t } = useLang();
-
   const pillars = [
-    {
-      id: "return",
-      Icon: RotateCcw,
-      title: t.home.trustReturn,
-      desc: t.home.trustReturnDesc,
-      color: "bg-brand/10 text-brand",
-    },
-    {
-      id: "cash-on-delivery",
-      Icon: Banknote,
-      title: t.home.trustCod,
-      desc: t.home.trustCodDesc,
-      color: "bg-emerald/10 text-emerald",
-    },
-    {
-      id: "made-in-egypt",
-      Icon: Factory,
-      title: t.home.trustLocal,
-      desc: t.home.trustLocalDesc,
-      color: "bg-gold/10 text-gold",
-    },
+    { image: "/images/keepfit-easy-returns.png", title: t.home.trustReturn, desc: t.home.trustReturnDesc },
+    { image: "/images/keepfit-cod-delivery.png", title: t.home.trustCod, desc: t.home.trustCodDesc },
+    { image: "/images/keepfit-egypt-delivery.png", title: t.home.trustLocal, desc: t.home.trustLocalDesc },
   ];
 
   return (
-    <section className="mx-auto max-w-7xl px-5 py-20">
-      <FadeIn>
-        <h2 className="text-center font-heading text-2xl font-bold text-fg sm:text-3xl">
-          {t.home.trustTitle}
-        </h2>
-      </FadeIn>
-      <FadeInStagger className="mt-10 grid gap-5 sm:grid-cols-3">
-        {pillars.map(({ id, Icon, title, desc, color }) => (
-          <FadeIn key={id} className="glass p-6 text-center">
-            <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl ${color}`}>
-              <Icon size={24} />
-            </div>
-            <h3 className="mt-4 text-base font-semibold text-fg">{title}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-fg-dim">{desc}</p>
-          </FadeIn>
-        ))}
-      </FadeInStagger>
-    </section>
-  );
-}
-
-/* ─── Why Xeemo Section ───────────────────────────────────────────────────── */
-
-export function WhyXeemoSection() {
-  const { t } = useLang();
-
-  const reasons = [
-    { Icon: FlaskConical, title: t.home.whyPro, desc: t.home.whyProDesc },
-    { Icon: Factory, title: t.home.whyFactory, desc: t.home.whyFactoryDesc },
-    { Icon: Flame, title: t.home.whyTested, desc: t.home.whyTestedDesc },
-  ];
-
-  return (
-    <section className="border-y border-border bg-white/[0.01] py-20">
+    <section className="border-y border-white/8 bg-[#080808] py-20 sm:py-24">
       <div className="mx-auto max-w-7xl px-5">
-        <FadeIn className="text-center">
-          <h2 className="font-heading text-2xl font-bold text-fg sm:text-3xl">
-            {t.home.whyTitle}
+        <FadeIn>
+          <h2 className="max-w-2xl font-heading text-3xl font-black text-white sm:text-4xl">
+            {t.home.trustTitle}
           </h2>
-          <p className="mt-2 text-sm text-fg-dim">{t.home.whySub}</p>
         </FadeIn>
-        <FadeInStagger className="mt-10 grid gap-6 sm:grid-cols-3">
-          {reasons.map(({ Icon, title, desc }) => (
-            <FadeIn key={title} className="flex gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand">
-                <Icon size={22} />
+        <FadeInStagger className="mt-10 grid gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10 sm:grid-cols-3">
+          {pillars.map(({ image, title, desc }) => (
+            <FadeIn key={title} className="overflow-hidden bg-[#0d0d0d]">
+              <div className="relative aspect-[4/3] bg-black">
+                <Image src={image} alt="" fill sizes="(max-width: 640px) 100vw, 33vw" className="object-contain" />
               </div>
-              <div>
-                <h3 className="text-sm font-semibold text-fg">{title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-fg-dim">{desc}</p>
+              <div className="p-7 sm:p-8">
+                <div className="h-px w-10 bg-brand" />
+                <h3 className="mt-5 text-lg font-black text-white">{title}</h3>
+                <p className="mt-3 text-base leading-7 text-white/60">{desc}</p>
               </div>
             </FadeIn>
           ))}
@@ -375,24 +48,55 @@ export function WhyXeemoSection() {
   );
 }
 
-/* ─── Bundle Offers Section ───────────────────────────────────────────────── */
+export function WhyKeepFitSection() {
+  const { t } = useLang();
+  const reasons = [
+    { image: "/images/keepfit-goal-guidance.png", title: t.home.whyPro, desc: t.home.whyProDesc },
+    { image: "/images/keepfit-clear-shopping.png", title: t.home.whyFactory, desc: t.home.whyFactoryDesc },
+    { image: "/images/keepfit-customer-support.png", title: t.home.whyTested, desc: t.home.whyTestedDesc },
+  ];
 
-export function BundleOffersSection({ bundles }: { bundles?: ResolvedBundle[] }) {
+  return (
+    <section className="relative overflow-hidden py-20 sm:py-28">
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-[radial-gradient(circle_at_left,rgba(255,204,0,0.1),transparent_68%)]" />
+      <div className="relative mx-auto grid max-w-7xl gap-10 px-5 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+        <FadeIn>
+          <h2 className="text-balance font-heading text-3xl font-black text-fg sm:text-5xl">
+            {t.home.whyTitle}
+          </h2>
+          <p className="mt-4 max-w-lg text-base leading-8 text-fg-dim">{t.home.whySub}</p>
+        </FadeIn>
+        <FadeInStagger className="divide-y divide-border border-y border-border">
+          {reasons.map(({ image, title, desc }) => (
+            <FadeIn key={title} className="flex gap-5 py-7 first:pt-0 last:pb-0 sm:gap-7">
+              <div className="relative h-24 w-28 shrink-0 overflow-hidden rounded-lg border border-brand/70 sm:h-28 sm:w-36">
+                <Image src={image} alt="" fill sizes="144px" className="object-cover" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-fg">{title}</h3>
+                <p className="mt-2 max-w-2xl text-base leading-7 text-fg-dim">{desc}</p>
+              </div>
+            </FadeIn>
+          ))}
+        </FadeInStagger>
+      </div>
+    </section>
+  );
+}
+
+export function BundleOffersSection({ bundles }: { bundles: ResolvedBundle[] }) {
   const { t, lang } = useLang();
-  const ar = lang === "ar";
   const [addedKey, setAddedKey] = useState<string | null>(null);
+  const ar = lang === "ar";
 
-  const fallbackBundles = BUNDLES;
-  const resolved = bundles && bundles.length > 0;
+  if (bundles.length === 0) return null;
 
   function handleAddBundle(bundle: ResolvedBundle) {
-    const totalOriginal = bundle.originalPrice;
-    const ratio = totalOriginal > 0 ? bundle.bundlePrice / totalOriginal : 1;
+    const ratio = bundle.originalPrice > 0 ? bundle.bundlePrice / bundle.originalPrice : 1;
 
     for (const product of bundle.products) {
       const selectedVariant = product.default_variant;
       if (!selectedVariant) continue;
-      const discountedPrice = Math.round(Number(product.price) * ratio);
       addToCart({
         id: selectedVariant.id,
         variant_id: selectedVariant.id,
@@ -401,330 +105,67 @@ export function BundleOffersSection({ bundles }: { bundles?: ResolvedBundle[] })
         slug: product.slug,
         name_en: product.name_en,
         name_ar: product.name_ar,
-        price: discountedPrice,
-        image: product.images?.[0] ?? "/images/placeholder.webp",
+        price: Math.round(Number(product.price) * ratio),
+        image: product.images?.[0] ?? "/keepfit-logo.png",
         stock: selectedVariant.stock,
         variant_label_en: selectedVariant.label_en,
         variant_label_ar: selectedVariant.label_ar,
         offer_key: bundle.key,
       });
     }
+
     setAddedKey(bundle.key);
-    setTimeout(() => setAddedKey(null), 2500);
+    window.setTimeout(() => setAddedKey(null), 2500);
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-5 py-20">
-      <FadeIn className="text-center">
-        <h2 className="font-heading text-2xl font-bold text-fg sm:text-3xl">
-          {t.home.bundleTitle}
-        </h2>
-        <p className="mt-2 text-sm text-fg-dim">{t.home.bundleSub}</p>
-      </FadeIn>
-      <FadeInStagger className="mt-10 grid gap-5 sm:grid-cols-3">
-        {resolved
-          ? bundles.map((b) => {
-              const title = ar ? b.title_ar : b.title_en;
-              const desc = ar ? b.desc_ar : b.desc_en;
-              const saving = b.originalPrice - b.bundlePrice;
-              const image = b.image || b.products[0]?.images?.[0] || "/images/placeholder.webp";
-              const isAdded = addedKey === b.key;
-              return (
-                <FadeIn key={b.key} className="glass group flex flex-col overflow-hidden transition-all hover:-translate-y-0.5 hover:border-brand/20 hover:shadow-lg hover:shadow-brand/5">
-                  <div className="relative aspect-[4/3] overflow-hidden bg-surface">
-                    <Image
-                      src={image}
-                      alt={title}
-                      fill
-                      sizes="(max-width:768px) 100vw, 33vw"
-                      className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <div className="absolute left-2.5 top-2.5">
-                      <span className="pill pill-warning gap-1">
-                        <Package size={10} />
-                        {b.products.length} {ar ? "منتجات" : "items"}
-                      </span>
+    <section className="border-t border-border bg-[#080808] py-20 sm:py-24">
+      <div className="mx-auto max-w-7xl px-5">
+        <FadeIn>
+          <h2 className="font-heading text-3xl font-black text-white sm:text-4xl">{t.home.bundleTitle}</h2>
+          <p className="mt-3 text-base text-white/60">{t.home.bundleSub}</p>
+        </FadeIn>
+        <FadeInStagger className="mt-10 grid gap-5 md:grid-cols-3">
+          {bundles.map((bundle) => {
+            const title = ar ? bundle.title_ar : bundle.title_en;
+            const description = ar ? bundle.desc_ar : bundle.desc_en;
+            const saving = bundle.originalPrice - bundle.bundlePrice;
+            const image = bundle.image || bundle.products[0]?.images?.[0] || "/keepfit-logo.png";
+            const isAdded = addedKey === bundle.key;
+
+            return (
+              <FadeIn key={bundle.key} className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#111]">
+                <div className="relative aspect-[4/3] overflow-hidden bg-white">
+                  <Image src={image} alt={title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-contain p-4" />
+                  <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/80 px-3 py-1.5 text-xs font-bold text-white">
+                    <Package size={13} />
+                    {bundle.products.length} {ar ? "منتجات" : "items"}
+                  </span>
+                </div>
+                <div className="flex flex-1 flex-col p-6">
+                  <h3 className="text-xl font-black text-white">{title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-white/60">{description}</p>
+                  <div className="mt-auto pt-6">
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <span className="text-2xl font-black text-brand">{formatPrice(bundle.bundlePrice, lang)}</span>
+                      <span className="text-sm text-white/45 line-through">{formatPrice(bundle.originalPrice, lang)}</span>
                     </div>
-                  </div>
-                  <div className="flex flex-1 flex-col p-5">
-                    <h3 className="text-base font-semibold text-fg">{title}</h3>
-                    <p className="mt-1.5 text-xs leading-relaxed text-fg-dim">{desc}</p>
-                    <ul className="mt-2 space-y-0.5">
-                      {b.products.map((p) => (
-                        <li key={p.id} className="text-[11px] text-fg-dim">
-                          &bull; {ar ? p.name_ar : p.name_en}
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="mt-auto pt-4">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-xl font-bold text-brand">{formatPrice(b.bundlePrice, lang)}</span>
-                        <span className="text-sm text-fg-dim line-through">{formatPrice(b.originalPrice, lang)}</span>
-                      </div>
-                      <p className="mt-1 text-xs font-medium text-emerald">
-                        {t.home.bundleSave} {formatPrice(saving, lang)}
-                      </p>
-                    </div>
+                    {saving > 0 ? <p className="mt-1 text-sm font-bold text-emerald">{t.home.bundleSave} {formatPrice(saving, lang)}</p> : null}
                     <button
-                      onClick={() => handleAddBundle(b)}
-                      className="btn btn-primary mt-4 w-full gap-2 text-sm"
+                      type="button"
+                      onClick={() => handleAddBundle(bundle)}
+                      className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-brand px-5 font-black text-black transition hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
                     >
-                      {isAdded ? (
-                        <><CheckCircle size={14} /> {ar ? "تمت الإضافة للسلة" : "Added to Cart"}</>
-                      ) : (
-                        <><ShoppingBag size={14} /> {ar ? "أضف الباكدج للسلة" : "Add Bundle to Cart"}</>
-                      )}
+                      {isAdded ? <CheckCircle size={18} /> : <ShoppingBag size={18} />}
+                      {isAdded ? (ar ? "تمت الإضافة" : "Added") : (ar ? "أضف الباكدج للسلة" : "Add bundle to cart")}
                     </button>
                   </div>
-                </FadeIn>
-              );
-            })
-          : fallbackBundles.map((b) => {
-              const bundleDetails: Record<string, { title: string; desc: string }> = {
-                fullCare: { title: t.home.bundleFullCare, desc: t.home.bundleFullCareDesc },
-                proPack: { title: t.home.bundleProPack, desc: t.home.bundleProPackDesc },
-                motoPack: { title: t.home.bundleMotoPack, desc: t.home.bundleMotoPackDesc },
-              };
-              const info = bundleDetails[b.key];
-              const saving = b.originalPrice - b.bundlePrice;
-              return (
-                <FadeIn key={b.key} className="glass group flex flex-col overflow-hidden transition-all hover:-translate-y-0.5 hover:border-brand/20 hover:shadow-lg hover:shadow-brand/5">
-                  <div className="relative aspect-[4/3] overflow-hidden bg-surface">
-                    <Image
-                      src={b.image}
-                      alt={info.title}
-                      fill
-                      sizes="(max-width:768px) 100vw, 33vw"
-                      className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <div className="absolute left-2.5 top-2.5">
-                      <span className="pill pill-warning gap-1">
-                        <Package size={10} />
-                        {b.items} {ar ? "منتجات" : "items"}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-1 flex-col p-5">
-                    <h3 className="text-base font-semibold text-fg">{info.title}</h3>
-                    <p className="mt-1.5 text-xs leading-relaxed text-fg-dim">{info.desc}</p>
-                    <div className="mt-auto pt-4">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-xl font-bold text-brand">{formatPrice(b.bundlePrice, lang)}</span>
-                        <span className="text-sm text-fg-dim line-through">{formatPrice(b.originalPrice, lang)}</span>
-                      </div>
-                      <p className="mt-1 text-xs font-medium text-emerald">
-                        {t.home.bundleSave} {formatPrice(saving, lang)}
-                      </p>
-                    </div>
-                    <Link
-                      href="https://wa.me/201150301033"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn btn-primary mt-4 w-full gap-2 text-sm"
-                    >
-                      {t.home.shopNow}
-                      <ArrowRight size={14} />
-                    </Link>
-                  </div>
-                </FadeIn>
-              );
-            })}
-      </FadeInStagger>
-    </section>
-  );
-}
-
-/* ─── FAQ / Objection Killer ──────────────────────────────────────────────── */
-
-export function FAQSection() {
-  const { t } = useLang();
-
-  return (
-    <section className="mx-auto max-w-3xl px-5 py-20">
-      <div className="text-center">
-        <h2 className="font-heading text-2xl font-bold text-fg sm:text-3xl">
-          {t.home.faqTitle}
-        </h2>
-        <p className="mt-2 text-sm text-fg-dim">{t.home.faqSub}</p>
-      </div>
-      <div className="mt-10 space-y-3">
-        {FAQ_ITEMS.map(({ q, a }, i) => (
-          <details
-            key={i}
-            className="faq-item glass overflow-hidden"
-            {...(i === 0 ? { open: true } : {})}
-          >
-            <summary className="flex items-center justify-between gap-4 p-5 text-sm font-semibold text-fg">
-              <span>{t.home[q]}</span>
-              <ChevronDown size={16} className="faq-chevron shrink-0 text-fg-dim" />
-            </summary>
-            <div className="border-t border-border px-5 pb-5 pt-4 text-sm leading-relaxed text-fg-muted">
-              {t.home[a]}
-            </div>
-          </details>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* ─── Final CTA ───────────────────────────────────────────────────────────── */
-
-/* ─── Category Grid (kept for navbar/other pages) ─────────────────────────── */
-
-export function CategoryGrid() {
-  const { t, lang } = useLang();
-  return (
-    <section id="categories" className="mx-auto max-w-7xl px-5 py-20">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h2 className="font-heading text-2xl font-bold text-fg sm:text-3xl">
-            {t.home.categories}
-          </h2>
-          <p className="mt-1 text-sm text-fg-dim">
-            {lang === "ar" ? "اختر الفئة التي تناسبك" : "Browse by what you need"}
-          </p>
-        </div>
-      </div>
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {CATEGORIES.map(({ href, key, Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className="glass group flex items-center gap-4 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/20 hover:shadow-lg hover:shadow-brand/5"
-          >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand transition group-hover:bg-brand group-hover:text-white">
-              <Icon size={22} />
-            </div>
-            <div className="flex-1">
-              <span className="block text-sm font-semibold text-fg">
-                {t.nav[key]}
-              </span>
-              <span className="mt-0.5 flex items-center gap-1 text-xs text-fg-dim opacity-0 transition group-hover:opacity-100">
-                {t.home.explore}
-                <ArrowRight size={12} />
-              </span>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* ─── Testimonials (upgraded with stats + names) ──────────────────────────── */
-
-export function Testimonials({ stats }: { stats?: SocialStats }) {
-  const { t, lang } = useLang();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const ar = lang === "ar";
-
-  const s = stats ?? { customers: "+500", carWashes: "+50", rating: "4.8/5" };
-
-  function scroll(action: "prev" | "next") {
-    const el = scrollRef.current;
-    if (!el) return;
-    const amount = el.clientWidth * 0.7;
-    
-    // In LTR: next = scroll right (+), prev = scroll left (-)
-    // In RTL: next = scroll left (-), prev = scroll right (+)
-    const physicalRight = ar ? action === "prev" : action === "next";
-    
-    el.scrollBy({ left: physicalRight ? amount : -amount, behavior: "smooth" });
-  }
-
-  return (
-    <section className="mx-auto max-w-7xl px-5 py-20">
-      {/* Stats bar — editable via admin settings (keys: stat_customers, stat_carwashes, stat_rating) */}
-      <FadeInStagger className="mb-10 flex flex-wrap justify-center gap-6 sm:gap-10">
-        <FadeIn><StatItem icon={<Users size={18} />} value={s.customers} label={ar ? "عميل" : "Customers"} /></FadeIn>
-        <FadeIn><StatItem icon={<Car size={18} />} value={s.carWashes} label={ar ? "مغسلة" : "Car washes"} /></FadeIn>
-        <FadeIn><StatItem icon={<Star size={18} />} value={s.rating} label={ar ? "تقييم" : "Rating"} /></FadeIn>
-      </FadeInStagger>
-
-      <FadeIn className="flex items-end justify-between gap-4">
-        <div>
-          <h2 className="font-heading text-2xl font-bold text-fg sm:text-3xl">
-            {t.home.testimonials}
-          </h2>
-          <p className="mt-1 text-sm text-fg-dim">
-            {ar ? "آراء حقيقية من عملاؤنا" : "Real feedback from our customers"}
-          </p>
-        </div>
-        <div className="hidden items-center gap-2 sm:flex">
-          {/* "Prev" Button: visually on Left in LTR, on Right in RTL */}
-          <button
-            onClick={() => scroll("prev")}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-fg-dim transition hover:border-brand/40 hover:text-fg active:scale-95"
-          >
-            {ar ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-          </button>
-          
-          {/* "Next" Button: visually on Right in LTR, on Left in RTL */}
-          <button
-            onClick={() => scroll("next")}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-fg-dim transition hover:border-brand/40 hover:text-fg active:scale-95"
-          >
-            {ar ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-          </button>
-        </div>
-      </FadeIn>
-
-      <FadeIn>
-        <div
-          ref={scrollRef}
-          className="mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 scrollbar-none"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-        >
-          {TESTIMONIALS.map((t, i) => (
-            <div
-              key={i}
-              className="group w-[280px] shrink-0 snap-start overflow-hidden rounded-2xl border border-border bg-ink transition-all duration-500 hover:-translate-y-1 hover:border-brand/40 hover:shadow-2xl hover:shadow-black/50 sm:w-[320px]"
-            >
-              <div className="relative aspect-[3/4] w-full overflow-hidden bg-black/60 sm:aspect-[4/5]">
-                {/* Blurred dynamic backdrop */}
-                <div className="absolute inset-0 z-0 opacity-40 blur-2xl transition-opacity duration-500 group-hover:opacity-60">
-                  <Image src={t.src} alt="" fill sizes="100px" className="object-cover" />
                 </div>
-                
-                <Image
-                  src={t.src}
-                  alt={`${t.name[lang]} — ${t.city[lang]}`}
-                  fill
-                  sizes="(max-width: 640px) 280px, 320px"
-                  className="relative z-10 object-contain p-3 transition-transform duration-500 group-hover:scale-[1.02]"
-                />
-              </div>
-              
-              <div className="relative z-20 border-t border-white/[0.04] bg-surface/80 px-5 py-4 backdrop-blur-xl">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
-                    <Quote size={14} />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="block text-sm font-bold text-fg">{t.name[lang]}</span>
-                    <span className="block text-[11px] font-medium text-fg-dim">{t.city[lang]}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </FadeIn>
+              </FadeIn>
+            );
+          })}
+        </FadeInStagger>
+      </div>
     </section>
-  );
-}
-
-function StatItem({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand">
-        {icon}
-      </div>
-      <div>
-        <span className="block text-lg font-bold text-fg">{value}</span>
-        <span className="block text-xs text-fg-dim">{label}</span>
-      </div>
-    </div>
   );
 }

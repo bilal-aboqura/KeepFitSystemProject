@@ -6,7 +6,7 @@ export function newConfirmationGrant() {
   return { secret, hash: hashConfirmationSecret(secret), expiresAt: new Date(Date.now() + 30 * 86400000) };
 }
 export function confirmationGrantCookieName(orderNumber: string) {
-  return "xeemo_order_grant_" + orderNumber;
+  return "keepfit_order_grant_" + orderNumber;
 }
 export const confirmationCookieOptions = {
   httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/checkout",

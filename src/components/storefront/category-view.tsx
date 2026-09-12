@@ -101,7 +101,7 @@ export function CategoryView({
       </section>
 
       <section className="sticky top-[72px] z-40 mx-auto max-w-7xl px-5 py-4 transition-all">
-        <div className="flex flex-col gap-4 rounded-2xl border border-black/8 bg-white/92 p-3 shadow-[0_8px_30px_rgba(17,17,17,0.08)] backdrop-blur-2xl sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 rounded-2xl border border-black/10 bg-white/95 p-3 shadow-[0_6px_8px_rgba(0,0,0,0.08)] backdrop-blur-2xl sm:flex-row sm:items-center sm:justify-between">
           <div className="group flex items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black/[0.03] text-fg-dim transition-colors group-hover:bg-brand/10 group-hover:text-brand">
               <ArrowUpDown size={18} />
@@ -113,16 +113,16 @@ export function CategoryView({
                 onChange={(e) => setSort(e.target.value as Sort)}
                 className="w-full min-w-[200px] cursor-pointer appearance-none bg-transparent px-2 text-sm font-medium text-fg focus:outline-none focus:ring-0"
               >
-                <option value="featured" className="bg-white text-fg">
+                <option value="featured" className="bg-surface text-fg">
                   {ar ? "ترتيب: المميزة" : "Sort: Featured"}
                 </option>
-                <option value="price-asc" className="bg-white text-fg">
+                <option value="price-asc" className="bg-surface text-fg">
                   {ar ? "ترتيب: السعر (الأقل للأعلى)" : "Sort: Price (Low to High)"}
                 </option>
-                <option value="price-desc" className="bg-white text-fg">
+                <option value="price-desc" className="bg-surface text-fg">
                   {ar ? "ترتيب: السعر (الأعلى للأقل)" : "Sort: Price (High to Low)"}
                 </option>
-                <option value="name" className="bg-white text-fg">
+                <option value="name" className="bg-surface text-fg">
                   {ar ? "ترتيب: أبجدي" : "Sort: Name"}
                 </option>
               </select>
@@ -151,7 +151,7 @@ export function CategoryView({
                 onChange={(e) =>
                   setMaxPrice(Number(e.target.value) >= (priceCeiling || 0) ? "" : Number(e.target.value))
                 }
-                className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-black/10 accent-brand transition-all hover:accent-brand/80 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-brand [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(220,38,38,0.35)]"
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-black/10 accent-brand transition-all hover:accent-brand/80 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-brand [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(255,204,0,0.35)]"
               />
             </label>
           </div>

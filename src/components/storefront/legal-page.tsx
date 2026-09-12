@@ -22,7 +22,7 @@ export function LegalPage({
     <div className="bg-[linear-gradient(180deg,rgba(225,6,0,0.06),transparent_22%)]">
       <div className="mx-auto max-w-5xl px-5 py-14">
         <div className="glass-elevated overflow-hidden">
-          <div className="border-b border-border bg-[radial-gradient(circle_at_top_left,rgba(225,6,0,0.22),transparent_34%),linear-gradient(135deg,rgba(17,17,17,0.98),rgba(46,46,46,0.95))] px-6 py-8 text-white sm:px-10">
+          <div className="border-b border-border bg-[radial-gradient(circle_at_top_left,rgba(255,204,0,0.18),transparent_34%),linear-gradient(135deg,rgba(5,5,5,0.99),rgba(24,24,24,0.97))] px-6 py-8 text-white sm:px-10">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/65">
               {eyebrow}
             </p>
@@ -42,7 +42,7 @@ export function LegalPage({
                   className="glass rounded-[20px] p-5 sm:p-6"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-sm font-semibold text-white">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-sm font-semibold text-black">
                       {index + 1}
                     </span>
                     <h2 className="text-lg font-semibold text-fg">{section.title}</h2>
@@ -63,26 +63,26 @@ export function LegalPage({
 
             <aside
               className={cn(
-                "rounded-[24px] border border-border bg-[linear-gradient(180deg,rgba(225,6,0,0.08),rgba(255,255,255,0.96))] p-5 sm:p-6",
+                "rounded-2xl border border-border bg-surface p-5 sm:p-6",
                 "lg:sticky lg:top-24 lg:h-fit",
               )}
             >
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
-                Xeemo
+                KeepFit Supplement
               </p>
               <h2 className="mt-3 text-lg font-semibold text-fg">{note}</h2>
               <div className="mt-5 space-y-3 text-sm text-fg-muted">
-                <div className="rounded-2xl border border-border bg-white/80 p-4">
+                <div className="rounded-xl border border-border bg-ink p-4">
                   <p className="font-medium text-fg">Phone</p>
                   <p dir="ltr" className="mt-1">
                     +20 115 030 1033
                   </p>
                 </div>
-                <div className="rounded-2xl border border-border bg-white/80 p-4">
-                  <p className="font-medium text-fg">Email</p>
-                  <p className="mt-1 break-all">mohamed.xeemo@gmail.com</p>
+                <div className="rounded-xl border border-border bg-ink p-4">
+                  <p className="font-medium text-fg">Website</p>
+                  <p className="mt-1 break-all" dir="ltr">keepfitsupplement.com</p>
                 </div>
-                <div className="rounded-2xl border border-border bg-white/80 p-4">
+                <div className="rounded-xl border border-border bg-ink p-4">
                   <p className="font-medium text-fg">Address</p>
                   <p className="mt-1">Egypt, Gharbia, Tanta</p>
                 </div>

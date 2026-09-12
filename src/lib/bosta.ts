@@ -5,7 +5,7 @@ import { getBostaStateMeta } from "@/lib/bosta-status";
 const BOSTA_API_URL = "https://app.bosta.co/api/v2";
 const EGYPT_COUNTRY_ID = "60e4482c7cb7d4bc4849c4d5";
 
-export const BOSTA_WEBHOOK_HEADER = "x-xeemo-bosta-webhook";
+export const BOSTA_WEBHOOK_HEADER = "x-keepfit-bosta-webhook";
 
 export interface BostaShipment {
   deliveryId: string;
@@ -550,7 +550,7 @@ export async function createBostaPickup(input: {
         secPhone: input.location.contactPerson?.secPhone,
         email: input.location.contactPerson?.email ?? defaultContact?.email,
       },
-      notes: input.notes?.slice(0, 500) || "Xeemo confirmed orders",
+      notes: input.notes?.slice(0, 500) || "KeepFit confirmed orders",
       numberOfParcels: input.trackingNumbers.length,
       packageType: "Normal",
       hasFragileItems: process.env.BOSTA_PICKUP_HAS_FRAGILE_ITEMS === "true",

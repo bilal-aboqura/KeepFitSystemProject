@@ -44,7 +44,7 @@ export function CartAddPrompt() {
         ref={dialog}
         aria-labelledby="cart-add-title"
         aria-describedby="cart-add-description"
-        className="fixed inset-0 m-auto max-h-[85dvh] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded-2xl bg-white p-5 text-center text-fg backdrop:bg-black/45"
+        className="fixed inset-0 m-auto max-h-[85dvh] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded-2xl border border-border bg-surface p-5 text-center text-fg backdrop:bg-black/70"
         dir={ar ? "rtl" : "ltr"}
       >
         <CheckCircle size={30} className="mx-auto text-emerald" aria-hidden="true" />

@@ -9,7 +9,7 @@ export function ProductGallery({ productMedia, variantMedia, name }: { productMe
   const gallery = variantMedia.length ? variantMedia : productMedia;
   const [selected, setSelected] = useState(0);
   const current = gallery[Math.min(selected, Math.max(0, gallery.length - 1))];
-  const src = current?.public_url ?? "/images/placeholder.webp";
+  const src = current?.public_url ?? "/keepfit-logo.png";
   return (
     <div>
       <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-white">

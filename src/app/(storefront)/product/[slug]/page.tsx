@@ -29,7 +29,7 @@ export async function generateMetadata({
     description,
     openGraph: {
       type: "website",
-      title: `${name} | Xeemo`,
+      title: `${name} | KeepFit Supplement`,
       description,
       images: image ? [{ url: image, width: 800, height: 800, alt: name }] : undefined,
     },

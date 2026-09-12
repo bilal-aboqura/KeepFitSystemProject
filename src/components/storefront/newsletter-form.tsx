@@ -55,13 +55,13 @@ export function NewsletterForm() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder={t.footer.newsletterPlaceholder}
-          className="min-w-0 flex-1 rounded-xl border border-white/12 bg-white px-4 py-3 text-sm text-fg outline-none transition placeholder:text-fg-dim focus:border-brand"
+          className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/55 focus:border-brand"
           required
         />
         <button
           type="submit"
           disabled={status === "loading"}
-          className="rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-xl bg-brand px-5 py-3 text-sm font-bold text-black transition hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-60"
         >
           {status === "loading" ? t.footer.newsletterLoading : t.footer.newsletterCta}
         </button>

@@ -1,5 +1,5 @@
 import { getLang, getT } from "@/lib/i18n/server";
-import { MessageCircle, ExternalLink as FacebookIcon, Clock, ArrowUpRight } from "lucide-react";
+import { MessageCircle, Globe2, Clock, ArrowUpRight } from "lucide-react";
 
 export default async function ContactPage() {
   const [lang, t] = await Promise.all([getLang(), getT()]);
@@ -19,11 +19,11 @@ export default async function ContactPage() {
           cta={ar ? "محادثة الآن" : "Chat now"}
         />
         <ContactCard
-          href="https://www.facebook.com/officialxeemo"
-          Icon={FacebookIcon}
-          title="Facebook"
-          detail="@officialxeemo"
-          cta={ar ? "زيارة الصفحة" : "Visit page"}
+          href="https://keepfitsupplement.com"
+          Icon={Globe2}
+          title="Website"
+          detail="keepfitsupplement.com"
+          cta={ar ? "زيارة الموقع" : "Visit website"}
         />
       </div>
 
@@ -43,7 +43,7 @@ export default async function ContactPage() {
 function ContactCard({ href, Icon, title, detail, cta }: { href: string; Icon: React.ComponentType<{ size?: number }>; title: string; detail: string; cta: string }) {
   return (
     <a href={href} target="_blank" rel="noreferrer" className="glass group flex items-start gap-4 p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/20 hover:shadow-lg hover:shadow-brand/5">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand transition group-hover:bg-brand group-hover:text-white">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand transition group-hover:bg-brand group-hover:text-black">
         <Icon size={22} />
       </div>
       <div className="flex-1">

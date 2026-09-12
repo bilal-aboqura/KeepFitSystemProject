@@ -44,15 +44,6 @@ export async function GET() {
     }
   }
 
-  // If no saved bundles, return defaults
-  if (bundles.length === 0) {
-    bundles = [
-      { key: "fullCare", title_en: "Full Care Package", title_ar: "باكدج العناية الكاملة", desc_en: "Dashboard Shiner + Snow Foam + Tire Shiner + Interior Cleaner (all 1L)", desc_ar: "داشبورد شاينر + سنو فوم + تاير شاينر + منظف داخلي (كلهم 1 لتر)", product_ids: [], bundle_price: 470, image: "/images/gold_1l.webp", active: true, sort_order: 0 },
-      { key: "proPack", title_en: "Car Wash Pro Pack", title_ar: "باكدج المغسلة", desc_en: "Dashboard Shiner + Snow Foam + Tire Shiner (all 4kg)", desc_ar: "داشبورد شاينر + سنو فوم + تاير شاينر (كلهم 4 كجم)", product_ids: [], bundle_price: 950, image: "/images/foam4k.webp", active: true, sort_order: 1 },
-      { key: "motoPack", title_en: "Moto Complete Pack", title_ar: "باكدج الموتوسيكل الكامل", desc_en: "Dashboard Shiner + Engine Shiner + Foam + Tire Shiner for motorcycles", desc_ar: "داشبورد شاينر + إنجين شاينر + فوم + تاير شاينر للموتوسيكلات", product_ids: [], bundle_price: 450, image: "/images/tire-1l.webp", active: true, sort_order: 2 },
-    ];
-  }
-
   return NextResponse.json({ bundles, products: products ?? [] });
 }
 

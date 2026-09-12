@@ -42,7 +42,7 @@ export function VariantSelector({ variants, selectedId, onChange }: { variants: 
               const active = selection[definitionId] === valueKey;
               return (
                 <button key={valueKey} type="button" disabled={!next} onClick={() => next && onChange(next)}
-                  className={cn("min-h-11 rounded-xl border px-4 text-sm font-medium transition", active ? "border-brand bg-brand text-white" : "border-border bg-white text-fg hover:border-brand", !next && "cursor-not-allowed opacity-35")}>
+                  className={cn("min-h-11 rounded-xl border px-4 text-sm font-medium transition", active ? "border-brand bg-brand text-black" : "border-border bg-surface text-fg hover:border-brand", !next && "cursor-not-allowed opacity-35")}>
                   {lang === "ar" ? label.ar : label.en}
                 </button>
               );

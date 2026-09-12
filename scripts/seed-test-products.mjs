@@ -21,7 +21,7 @@ const products = [
     descriptionAr: "منتج مؤقت لاختبار هوية العميل وإتمام الطلب. ليس من بيانات الكتالوج الإنتاجية.",
     price: 100,
     stock: 100,
-    image: "/images/carcare.webp",
+    image: "/keepfit-logo.png",
   },
   {
     legacyId: `${legacyPrefix}account`,
@@ -33,7 +33,7 @@ const products = [
     descriptionAr: "منتج مؤقت لاختبار ملكية طلبات العميل المسجل. ليس من بيانات الكتالوج الإنتاجية.",
     price: 175,
     stock: 100,
-    image: "/images/dashboard-1l.webp",
+    image: "/keepfit-logo.png",
   },
   {
     legacyId: `${legacyPrefix}commercial`,
@@ -45,7 +45,7 @@ const products = [
     descriptionAr: "منتج مؤقت لاختبار طلبات نوع العميل ولا يحتوي أسعارًا خاصة أو متغيرات.",
     price: 250,
     stock: 100,
-    image: "/images/candy.webp",
+    image: "/keepfit-logo.png",
   },
   {
     legacyId: `${legacyPrefix}checkout`,
@@ -57,7 +57,7 @@ const products = [
     descriptionAr: "منتج مؤقت لاختبار طلبات الزائر والعميل بالدفع النقدي والبطاقة. ليس منتجًا إنتاجيًا.",
     price: 499.99,
     stock: 100,
-    image: "/images/carpet.webp",
+    image: "/keepfit-logo.png",
   },
 ];
 
@@ -84,7 +84,7 @@ try {
   } else {
     const category = await db.query(
       `insert into public.categories (slug, name_en, name_ar, image, sort_order)
-       values ($1, '[TEST ONLY] Feature 001/002', '[اختبار فقط] الميزة 001/002', '/images/carcare.webp', 9999)
+       values ($1, '[TEST ONLY] Feature 001/002', '[اختبار فقط] الميزة 001/002', '/keepfit-logo.png', 9999)
        on conflict (slug) do update
        set name_en = excluded.name_en,
            name_ar = excluded.name_ar,

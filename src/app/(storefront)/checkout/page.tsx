@@ -203,7 +203,7 @@ export default function CheckoutPage() {
     return (
       <div className="mx-auto max-w-2xl px-5 py-20 text-center">
         <h1 className="font-heading text-2xl font-bold text-fg">{t.cart.empty}</h1>
-        <Link href="/category/carcare" className="btn btn-primary mt-6">{t.cart.continueShopping}</Link>
+        <Link href="/#categories" className="btn btn-primary mt-6">{t.cart.continueShopping}</Link>
       </div>
     );
   }
@@ -362,7 +362,7 @@ export default function CheckoutPage() {
           </div>
 
           {bumpProduct && (
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-white p-4 lg:hidden">
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface p-4 lg:hidden">
               <input type="checkbox" checked={bumpAdded} onChange={(event) => setBumpAdded(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-brand" />
               <span className="text-sm">
                 <span className="block font-semibold">{ar ? `أضف ${bumpProduct.name_ar} (اختياري)` : `Add ${bumpProduct.name_en} (optional)`}</span>
@@ -434,7 +434,7 @@ export default function CheckoutPage() {
           {bumpProduct && (
             <div className={`mt-5 cursor-pointer p-4 ${bumpAdded ? "bump-card bump-card-active" : "bump-card"}`} onClick={() => setBumpAdded((v) => !v)}>
               <div className="flex items-start gap-3">
-                <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${bumpAdded ? "border-gold bg-gold text-white" : "border-border"}`}>
+                <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${bumpAdded ? "border-gold bg-gold text-black" : "border-border"}`}>
                   {bumpAdded && <Check size={12} />}
                 </div>
                 <div className="flex-1">
@@ -470,7 +470,7 @@ export default function CheckoutPage() {
         </aside>
 
         {/* Mobile sticky bottom bar */}
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white p-4 lg:hidden" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface p-4 lg:hidden" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
           <div className="mx-auto flex max-w-6xl flex-col gap-2">
             {error && <p role="alert" className="max-h-20 overflow-auto text-sm text-red-700">{error}</p>}
             <div className="flex flex-col gap-2">

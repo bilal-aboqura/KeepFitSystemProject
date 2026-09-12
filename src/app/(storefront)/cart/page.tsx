@@ -48,7 +48,7 @@ export default function CartPage() {
             <ShoppingBag size={28} className="text-fg-dim" />
           </div>
           <p className="text-fg-muted">{t.cart.empty}</p>
-          <Link href="/category/carcare" className="btn btn-primary">
+          <Link href="/#categories" className="btn btn-primary">
             {t.cart.continueShopping}
           </Link>
         </div>
@@ -161,7 +161,7 @@ export default function CartPage() {
               {t.cart.checkout}
               <ArrowRight size={16} />
             </Link>
-            <Link href="/category/carcare" className="mt-3 block text-center text-xs text-fg-dim transition hover:text-fg">
+            <Link href="/#categories" className="mt-3 block text-center text-xs text-fg-dim transition hover:text-fg">
               {t.cart.continueShopping}
             </Link>
           </aside>

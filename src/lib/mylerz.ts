@@ -313,7 +313,7 @@ export async function createMylerzShipment(
         PickupDueDate: pickupDueDate,
         Package_Serial: 1,
         Reference: order.order_number,
-        Description: description || "Xeemo order",
+        Description: description || "KeepFit order",
         Total_Weight: weight,
         Service_Type: "DTD",
         Service: "ND",

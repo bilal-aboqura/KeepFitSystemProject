@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 const { Client } = pg;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ORIGINAL = path.resolve(__dirname, "../../"); // D:\XemoMainWebSite
+const ORIGINAL = path.resolve(__dirname, "../../");
 
 const connectionString = process.env.DIRECT_URL;
 const schemaOnly = process.argv.includes("--schema-only");
@@ -22,11 +22,16 @@ if (!connectionString) {
 
 // -- Source data -------------------------------------------------------------
 const CATEGORY_FILES = [
-  { file: "montgat.json", slug: "carcare", en: "Car Care", ar: "عناية السيارات", image: "/images/carcare.webp" },
-  { file: "montgatw.json", slug: "motocare", en: "Moto Care", ar: "عناية الموتوسيكلات", image: "/images/motocare.webp" },
-  { file: "montgatk.json", slug: "carpets", en: "Carpets & Furniture", ar: "السجاد والأثاث", image: "/images/carpetscare.webp" },
-  { file: "montgataf.json", slug: "air-freshener", en: "Air Freshener", ar: "معطر الجو", image: null },
-  { file: null, slug: "home-care", en: "Home Care", ar: "العناية بالمنزل", image: "/images/home-care.jpeg" },
+  { file: null, slug: "protein", en: "Protein", ar: "البروتين", image: null },
+  { file: null, slug: "creatine", en: "Creatine", ar: "الكرياتين", image: null },
+  { file: null, slug: "amino-acids", en: "Amino Acids", ar: "أحماض أمينية", image: null },
+  { file: null, slug: "vitamins", en: "Vitamins", ar: "الفيتامينات", image: null },
+  { file: null, slug: "pre-workout", en: "Pre-Workout", ar: "مكملات طاقة", image: null },
+  { file: null, slug: "mass-gainer", en: "Mass Gainer", ar: "زيادة الوزن", image: null },
+  { file: null, slug: "fat-burner", en: "Fat Burner", ar: "حوارق دهون", image: null },
+  { file: null, slug: "carbohydrates", en: "Carbohydrates", ar: "كربوهيدرات", image: null },
+  { file: null, slug: "accessories", en: "Accessories", ar: "إكسسوارات", image: null },
+  { file: null, slug: "other-products", en: "Other Products", ar: "منتجات أخرى", image: null },
 ];
 
 // Governorate Arabic → English
@@ -89,10 +94,10 @@ const SHIPPING = {
 const SHIPPING_GLOBAL_DEFAULT = 120;
 
 const SETTINGS = [
-  { key: "hero_title_en", en: "Premium Care for Your Ride", ar: "عناية فاخرة لسيارتك" },
-  { key: "hero_sub_en", en: "Professional car, moto & carpet chemicals — made in Egypt.", ar: "كيماويات احترافية للسيارات والموتوسيكلات والسجاد — صناعة مصرية." },
+  { key: "hero_title_en", en: "Fuel every goal.", ar: "كل هدف يبدأ من تغذية صح." },
+  { key: "hero_sub_en", en: "Supplements and training essentials in one place.", ar: "مكملاتك وأساسياتك الرياضية في مكان واحد." },
   { key: "contact_whatsapp", en: "201150301033", ar: "201150301033" },
-  { key: "contact_facebook", en: "https://www.facebook.com/officialxeemo", ar: "https://www.facebook.com/officialxeemo" },
+  { key: "contact_facebook", en: "", ar: "" },
   { key: "free_shipping_threshold", en: "1000", ar: "1000" },
   { key: "currency", en: "EGP", ar: "ج.م" },
 ];
@@ -105,7 +110,7 @@ function slugify(s) {
     .replace(/^-+|-+$/g, "");
 }
 function toImageUrl(img) {
-  if (!img || !img.trim() || img === "../Images/") return "/images/placeholder.webp";
+  if (!img || !img.trim() || img === "../Images/") return "/keepfit-logo.png";
   const file = path.basename(img.replace(/\\/g, "/"));
   return `/images/${file}`;
 }

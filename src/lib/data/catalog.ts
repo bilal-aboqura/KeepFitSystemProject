@@ -52,13 +52,18 @@ export interface CategoryInfo {
   image: string | null;
 }
 
-const HOME_CARE_FALLBACK: CategoryInfo = {
-  id: "",
-  slug: "home-care",
-  name_en: "Home Care",
-  name_ar: "العناية بالمنزل",
-  image: "/images/home-care.jpeg",
-};
+const STORE_CATEGORY_FALLBACKS: CategoryInfo[] = [
+  { id: "", slug: "protein", name_en: "Protein", name_ar: "مكملات بروتين", image: null },
+  { id: "", slug: "creatine", name_en: "Creatine", name_ar: "مكملات كرياتين", image: null },
+  { id: "", slug: "amino-acids", name_en: "Amino Acids", name_ar: "أحماض أمينية", image: null },
+  { id: "", slug: "vitamins", name_en: "Vitamins & Minerals", name_ar: "فيتامينات ومعادن", image: null },
+  { id: "", slug: "pre-workout", name_en: "Pre-Workout", name_ar: "مكملات طاقة", image: null },
+  { id: "", slug: "mass-gainer", name_en: "Mass Gainer", name_ar: "الماس جينر وزيادة الوزن", image: null },
+  { id: "", slug: "fat-burner", name_en: "Fat Burner", name_ar: "حوارق دهون", image: null },
+  { id: "", slug: "carbohydrates", name_en: "Carbohydrates", name_ar: "مكملات كربوهيدرات", image: null },
+  { id: "", slug: "accessories", name_en: "Accessories", name_ar: "إكسسوارات التمرين", image: null },
+  { id: "", slug: "other-products", name_en: "Other Products", name_ar: "منتجات أخرى", image: null },
+];
 
 /** Featured + recent active products for the homepage. */
 export async function getFeaturedProducts(limit = 8): Promise<ProductCard[]> {
@@ -69,26 +74,24 @@ export async function getCategoryBySlug(
   slug: string,
 ): Promise<CategoryInfo | null> {
   const supabase = await getSupabaseServerClient();
-  if (!supabase) return slug === "home-care" ? HOME_CARE_FALLBACK : null;
+  const fallback = STORE_CATEGORY_FALLBACKS.find((category) => category.slug === slug) ?? null;
+  if (!supabase) return fallback;
   const { data } = await supabase
     .from("categories")
     .select("id, slug, name_en, name_ar, image")
     .eq("slug", slug)
     .maybeSingle();
-  return (data as CategoryInfo) ?? (slug === "home-care" ? HOME_CARE_FALLBACK : null);
+  return (data as CategoryInfo) ?? fallback;
 }
 
 export async function getAllCategories(): Promise<CategoryInfo[]> {
   const supabase = await getSupabaseServerClient();
-  if (!supabase) return [HOME_CARE_FALLBACK];
+  if (!supabase) return [];
   const { data } = await supabase
     .from("categories")
     .select("id, slug, name_en, name_ar, image")
     .order("sort_order", { ascending: true });
-  const categories = (data as CategoryInfo[]) ?? [];
-  return categories.some((category) => category.slug === "home-care")
-    ? categories
-    : [...categories, HOME_CARE_FALLBACK];
+  return (data as CategoryInfo[]) ?? [];
 }
 
 export async function getCategoryById(id: string): Promise<CategoryInfo | null> {
@@ -165,44 +168,7 @@ export interface ResolvedBundle {
   originalPrice: number;
 }
 
-const DEFAULT_BUNDLES: BundleConfig[] = [
-  {
-    key: "fullCare",
-    title_en: "Full Care Package",
-    title_ar: "باكدج العناية الكاملة",
-    desc_en: "Dashboard Shiner + Snow Foam + Tire Shiner + Interior Cleaner (all 1L)",
-    desc_ar: "داشبورد شاينر + سنو فوم + تاير شاينر + منظف داخلي (كلهم 1 لتر)",
-    product_ids: [],
-    bundle_price: 470,
-    image: "/images/gold_1l.webp",
-    active: true,
-    sort_order: 0,
-  },
-  {
-    key: "proPack",
-    title_en: "Car Wash Pro Pack",
-    title_ar: "باكدج المغسلة",
-    desc_en: "Dashboard Shiner + Snow Foam + Tire Shiner (all 4kg)",
-    desc_ar: "داشبورد شاينر + سنو فوم + تاير شاينر (كلهم 4 كجم)",
-    product_ids: [],
-    bundle_price: 950,
-    image: "/images/foam4k.webp",
-    active: true,
-    sort_order: 1,
-  },
-  {
-    key: "motoPack",
-    title_en: "Moto Complete Pack",
-    title_ar: "باكدج الموتوسيكل الكامل",
-    desc_en: "Dashboard Shiner + Engine Shiner + Foam + Tire Shiner for motorcycles",
-    desc_ar: "داشبورد شاينر + إنجين شاينر + فوم + تاير شاينر للموتوسيكلات",
-    product_ids: [],
-    bundle_price: 450,
-    image: "/images/tire-1l.webp",
-    active: true,
-    sort_order: 2,
-  },
-];
+const DEFAULT_BUNDLES: BundleConfig[] = [];
 
 export async function getBundleConfigs(): Promise<BundleConfig[]> {
   const supabase = await getSupabaseServerClient();
@@ -245,43 +211,18 @@ export async function resolveBundles(): Promise<ResolvedBundle[]> {
         .in("id", config.product_ids);
       products = (data ?? []) as ProductCard[];
     } else {
-      // Auto-select fallback based on key
-      if (config.key === "fullCare") {
-        const cat = await getCategoryBySlug("carcare");
-        if (cat) {
-          const { data } = await supabase
-            .from("products")
-            .select("id, slug, name_en, name_ar, price, compare_at_price, images, is_featured, stock")
-            .eq("is_active", true)
-            .eq("category_id", cat.id)
-            .order("price", { ascending: true })
-            .limit(4);
-          products = (data ?? []) as ProductCard[];
-        }
-      } else if (config.key === "proPack") {
-        const cat = await getCategoryBySlug("carcare");
-        if (cat) {
-          const { data } = await supabase
-            .from("products")
-            .select("id, slug, name_en, name_ar, price, compare_at_price, images, is_featured, stock")
-            .eq("is_active", true)
-            .eq("category_id", cat.id)
-            .gt("price", 300)
-            .order("price", { ascending: true })
-            .limit(3);
-          products = (data ?? []) as ProductCard[];
-        }
-      } else if (config.key === "motoPack") {
-        const cat = await getCategoryBySlug("motocare");
-        if (cat) {
-          const { data } = await supabase
-            .from("products")
-            .select("id, slug, name_en, name_ar, price, compare_at_price, images, is_featured, stock")
-            .eq("is_active", true)
-            .eq("category_id", cat.id)
-            .order("price", { ascending: true });
-          products = (data ?? []) as ProductCard[];
-        }
+      const fallbackSlugs = ["protein", "creatine", "performance"];
+      const slug = fallbackSlugs[Math.min(config.sort_order, fallbackSlugs.length - 1)] ?? fallbackSlugs[0];
+      const cat = await getCategoryBySlug(slug);
+      if (cat) {
+        const { data } = await supabase
+          .from("products")
+          .select("id, slug, name_en, name_ar, price, compare_at_price, images, is_featured, stock")
+          .eq("is_active", true)
+          .eq("category_id", cat.id)
+          .order("price", { ascending: true })
+          .limit(4);
+        products = (data ?? []) as ProductCard[];
       }
     }
 

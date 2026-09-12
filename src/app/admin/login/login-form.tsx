@@ -62,16 +62,16 @@ export function LoginForm() {
     <div className="mx-auto flex min-h-[80vh] max-w-md flex-col justify-center px-4">
       <form onSubmit={handleSubmit} className="glass p-8 text-center">
         <div className="mb-6 flex justify-center">
-          <Image 
-            src="/logo.png" 
-            alt="Xeemo" 
-            width={160} 
-            height={48} 
-            className="h-12 w-auto object-contain brightness-0"
+          <Image
+            src="/keepfit-logo.png"
+            alt="KeepFit Supplement"
+            width={160}
+            height={48}
+            className="h-16 w-auto object-contain"
           />
         </div>
         <h1 className="font-display text-3xl tracking-wide text-fg">
-          Xeemo{" "}
+          KeepFit Supplement{" "}
           <span className="text-xs uppercase tracking-[0.2em] text-brand">
             Admin
           </span>

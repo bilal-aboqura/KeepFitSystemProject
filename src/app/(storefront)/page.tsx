@@ -2,18 +2,11 @@ import { HomeHero } from "@/components/storefront/home-hero-carousel";
 import { CategoryGrid } from "@/components/storefront/category-grid";
 import {
   TrustGuaranteeSection,
-  Testimonials,
-  WhyXeemoSection,
+  WhyKeepFitSection,
   BundleOffersSection,
 } from "@/components/storefront/home-hero";
 import { ProductCard } from "@/components/storefront/product-card";
-import {
-  getAllCategories,
-  getFeaturedProducts,
-  resolveBundles,
-  getSocialStats,
-  getHeroOverrides,
-} from "@/lib/data/catalog";
+import { getFeaturedProducts, resolveBundles, getHeroOverrides } from "@/lib/data/catalog";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getLang } from "@/lib/i18n/server";
 import { ArrowRight } from "lucide-react";
@@ -22,12 +15,10 @@ import { FadeIn, FadeInStagger } from "@/components/ui/fade-in";
 
 export default async function Home() {
   const supabase = await getSupabaseServerClient();
-  const [products, bundles, stats, heroOverrides, categories] = await Promise.all([
+  const [products, bundles, heroOverrides] = await Promise.all([
     getFeaturedProducts(8),
     resolveBundles(),
-    getSocialStats(),
     getHeroOverrides(),
-    getAllCategories(),
   ]);
   const connected = Boolean(supabase);
   const lang = await getLang();
@@ -35,25 +26,22 @@ export default async function Home() {
 
   return (
     <>
-      {/* 1. Hero — texts editable from admin/customize */}
       <HomeHero overrides={heroOverrides} />
 
-      {/* 2. Categories */}
-      <CategoryGrid categories={categories} />
+      <CategoryGrid />
 
-      {/* 3. Best Sellers (limited to top 8) */}
-      <section id="bestsellers" className="mx-auto max-w-7xl px-5 pb-20">
+      <section id="bestsellers" className="mx-auto max-w-7xl px-5 py-20 sm:py-24">
         <div className="flex items-end justify-between gap-4">
           <div>
             <h2 className="font-heading text-2xl font-bold text-fg sm:text-3xl">
               {ar ? "الأكثر مبيعاً" : "Best Sellers"}
             </h2>
-            <p className="mt-1 text-sm text-fg-dim">
-              {ar ? "المنتجات اللي عملاؤنا بيرجعوا يشتروها تاني" : "What our customers keep coming back for"}
+            <p className="mt-2 text-base text-fg-dim">
+              {ar ? "اختيارات مميزة علشان تكمّل هدفك." : "Featured picks to keep your goal moving."}
             </p>
           </div>
           <Link
-            href="/category/carcare"
+            href="#categories"
             className="hidden items-center gap-1.5 text-sm font-medium text-brand transition hover:underline sm:flex"
           >
             {ar ? "عرض الكل" : "View all"}
@@ -77,17 +65,11 @@ export default async function Home() {
         )}
       </section>
 
-      {/* 4. Trust & Guarantee */}
       <TrustGuaranteeSection />
 
-      {/* 5. Social Proof / Testimonials (stats loaded from DB settings) */}
-      <Testimonials stats={stats} />
+      <WhyKeepFitSection />
 
-      {/* 6. Why Xeemo — differentiators */}
-      <WhyXeemoSection />
-
-      {/* 7. Bundle Offers (with real products from DB) */}
-      <BundleOffersSection bundles={bundles} />
+      {bundles.length > 0 ? <BundleOffersSection bundles={bundles} /> : null}
 
     </>
   );

@@ -9,7 +9,7 @@ import type { CategoryInfo } from "@/lib/data/catalog";
 
 const KEY_DESCRIPTIONS: Record<string, { en: string; ar: string }> = {
   stat_customers: { en: "Total customers count", ar: "عدد العملاء الإجمالي" },
-  stat_carwashes: { en: "Total car washes count", ar: "عدد غسلات السيارات" },
+  stat_carwashes: { en: "Total partner accounts", ar: "عدد الحسابات التجارية" },
   stat_rating: { en: "Average customer rating", ar: "متوسط تقييم العملاء" },
   hero_title: { en: "Hero section title", ar: "عنوان القسم الرئيسي" },
   hero_subtitle: { en: "Hero section subtitle", ar: "العنوان الفرعي للقسم الرئيسي" },

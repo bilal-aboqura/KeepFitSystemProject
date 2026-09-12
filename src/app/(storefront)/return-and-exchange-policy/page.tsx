@@ -32,7 +32,7 @@ export default async function ReturnAndExchangePolicyPage() {
           title: "استرداد المبلغ",
           body: [
             "بعد استلام المنتج وفحصه، يتم تأكيد الاستحقاق ثم بدء إجراءات استرداد المبلغ بنفس وسيلة الدفع المتاحة أو بالطريقة المتفق عليها مع العميل.",
-            "إذا كان سبب الاسترجاع خطأ من جانبنا أو عيب في المنتج، تتحمل Xeemo رسوم الشحن المرتبطة بعملية الاسترجاع أو الاستبدال.",
+            "إذا كان سبب الاسترجاع خطأ من جانبنا أو عيب في المنتج، تتحمل KeepFit Supplement رسوم الشحن المرتبطة بعملية الاسترجاع أو الاستبدال.",
           ],
         },
       ]
@@ -62,7 +62,7 @@ export default async function ReturnAndExchangePolicyPage() {
           title: "Refund processing",
           body: [
             "Once the returned item is received and inspected, we will confirm eligibility and begin the refund process using the available payment method or another agreed method.",
-            "If the issue was caused by our error or a product defect, Xeemo will cover the related return or exchange shipping costs.",
+            "If the issue was caused by our error or a product defect, KeepFit Supplement will cover the related return or exchange shipping costs.",
           ],
         },
       ];
@@ -73,8 +73,8 @@ export default async function ReturnAndExchangePolicyPage() {
       title={ar ? "سياسة الاستبدال والاسترجاع" : "Exchange & Return Policy"}
       intro={
         ar
-          ? "نحرص أن تكون تجربة الشراء آمنة وواضحة. هذه السياسة توضح متى وكيف يمكنك طلب استبدال أو استرجاع أي منتج تم شراؤه من Xeemo."
-          : "We want every purchase to feel safe and straightforward. This policy explains when and how you can request an exchange or return for products purchased from Xeemo."
+          ? "نحرص أن تكون تجربة الشراء آمنة وواضحة. هذه السياسة توضح متى وكيف يمكنك طلب استبدال أو استرجاع أي منتج تم شراؤه من KeepFit Supplement."
+          : "We want every purchase to feel safe and straightforward. This policy explains when and how you can request an exchange or return for products purchased from KeepFit Supplement."
       }
       sections={sections}
       note={

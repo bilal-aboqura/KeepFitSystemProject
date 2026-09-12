@@ -5,7 +5,7 @@ it("keeps the additive migration identical to the canonical schema feature secti
   const migration = await readFile("supabase/migrations/001_customer_identity.sql", "utf8");
   const schema = await readFile("supabase/schema.sql", "utf8");
   const marker = "-- Feature 001 canonical schema (kept identical to its additive migration).";
-  const nextMarker = "-- =====================================================================\n-- Feature 002:";
+  const nextMarker = /-- =====================================================================\r?\n-- Feature 002:/;
   const featureSection = schema.split(marker)[1].split(nextMarker)[0];
   expect(featureSection.trim().replaceAll("\r\n", "\n")).toBe(migration.trim().replaceAll("\r\n", "\n"));
 });

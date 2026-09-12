@@ -190,7 +190,7 @@ export function ProductForm({
       </div>
 
       <Field label={t("images", lang)}>
-        <textarea rows={3} value={form.images} onChange={(e) => set("images", e.target.value)} className={inputCls} placeholder="/images/gold_1l.webp&#10;One URL per line, or use upload below" />
+        <textarea rows={3} value={form.images} onChange={(e) => set("images", e.target.value)} className={inputCls} placeholder="https://cdn.example.com/product.webp&#10;One URL per line, or use upload below" />
       </Field>
       <ProductImageUpload
         lang={lang}

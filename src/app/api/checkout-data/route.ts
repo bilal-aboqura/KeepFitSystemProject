@@ -14,7 +14,7 @@ export async function GET() {
   const configuredBumpProduct = selectedSlug
     ? await getProductBySlug(selectedSlug)
     : null;
-  const bumpCandidate = configuredBumpProduct ?? await getCheapestInCategory("air-freshener");
+  const bumpCandidate = configuredBumpProduct ?? await getCheapestInCategory("vitamins");
   const bumpProduct = bumpCandidate?.variant_count === 1 && bumpCandidate.default_variant ? bumpCandidate : null;
 
   return NextResponse.json({

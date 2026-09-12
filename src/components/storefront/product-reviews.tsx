@@ -89,7 +89,7 @@ export function ProductReviews({
         <div className="space-y-4">
           {reviews.length ? (
             reviews.map((review) => (
-              <article key={review.id} className="rounded-2xl border border-border bg-white p-5">
+              <article key={review.id} className="rounded-2xl border border-border bg-surface p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="font-semibold text-fg">{review.reviewer_name}</p>

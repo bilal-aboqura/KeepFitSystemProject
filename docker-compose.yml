@@ -1,7 +1,7 @@
 services:
   web:
     build: .
-    container_name: xeemo-web
+    container_name: keepfit-web
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
@@ -16,7 +16,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: xeemo-nginx
+    container_name: keepfit-nginx
     restart: unless-stopped
     ports:
       - "80:80"

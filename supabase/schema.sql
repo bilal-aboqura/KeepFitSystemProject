@@ -1,5 +1,5 @@
 -- ============================================================================
--- Xeemo Ecommerce — schema (Phase 2)
+-- KeepFit Supplement — schema (Phase 2)
 -- Run via scripts/migrate.mjs against DIRECT_URL (session pooler, port 5432).
 -- Idempotent: safe to re-run.
 -- ============================================================================

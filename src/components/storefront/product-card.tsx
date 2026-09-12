@@ -12,7 +12,7 @@ import type { ProductCard as ProductCardData } from "@/lib/data/catalog";
 export function ProductCard({ product }: { product: ProductCardData }) {
   const { t, lang } = useLang();
   const name = lang === "ar" ? product.name_ar : product.name_en;
-  const image = product.images?.[0] ?? "/images/placeholder.webp";
+  const image = product.images?.[0] ?? "/keepfit-logo.png";
   const outOfStock = product.stock <= 0;
   const ar = lang === "ar";
   const price = Number(product.price);
@@ -75,7 +75,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
         {!outOfStock && quickVariant && (
           <button
             onClick={handleQuickAdd}
-            className="absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-white transition-opacity duration-200 hover:bg-brand-dark focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
+            className="absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-black transition-opacity duration-200 hover:bg-brand-soft focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
             aria-label={ar ? `أضف ${name} للسلة` : `Add ${name} to cart`}
           >
             <ShoppingBag size={16} />
@@ -106,7 +106,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
               <span className="text-xs text-fg-dim line-through">
                 {formatPrice(compareAtPrice, lang)}
               </span>
-              <span className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-white">
+              <span className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-black">
                 {ar ? `وفر ${formatPrice(savings, lang)} · ${discountPercent}%` : `Save ${formatPrice(savings, lang)} · ${discountPercent}%`}
               </span>
             </>
