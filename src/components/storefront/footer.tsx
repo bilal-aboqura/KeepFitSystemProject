@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { MessageCircle, ExternalLink, MapPin, Phone, Mail } from "lucide-react";
+import { ArrowUpLeft, MapPin, MessageCircle, Phone, Mail } from "lucide-react";
 import { useLang } from "@/components/language/provider";
 import { NewsletterForm } from "@/components/storefront/newsletter-form";
 import { cn } from "@/lib/utils";
@@ -39,13 +39,13 @@ const paymentLogos = [
 ] as const;
 
 export function Footer() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const year = new Date().getFullYear();
 
   return (
-    <footer className="mt-auto border-t border-border bg-[#151515] text-white">
-      <div className="mx-auto max-w-7xl px-5 py-12">
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+    <footer className="mt-auto border-t border-black bg-[#090909] text-white">
+      <div className="mx-auto max-w-7xl px-5 py-14 sm:py-16">
+        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.25fr_0.7fr_0.7fr_1.15fr] lg:gap-8">
           <div>
             <div className="flex items-center gap-3">
               <Image
@@ -53,23 +53,24 @@ export function Footer() {
                 alt={t.brand}
                 width={816}
                 height={768}
-                className="h-20 w-24 object-contain"
+                className="h-16 w-20 object-contain"
               />
-              <span className="text-lg font-black tracking-tight" dir="ltr">KeepFit Supplement</span>
+              <div>
+                <span className="block text-lg font-black tracking-tight" dir="ltr">KeepFit Supplement</span>
+                <span className="mt-1 block text-xs font-bold text-brand">{t.tagline}</span>
+              </div>
             </div>
-            <p className="mt-3 text-sm leading-7 text-white/70">{t.tagline}</p>
-            <div className="mt-4 flex gap-2">
-              <SocialLink
-                href="https://wa.me/201150301033"
-                label="WhatsApp"
-                icon={<MessageCircle size={16} />}
-              />
-              <SocialLink
-                href="https://keepfitsupplement.com"
-                label="KeepFit Supplement website"
-                icon={<ExternalLink size={16} />}
-              />
-            </div>
+            <p className="mt-6 max-w-xs text-sm leading-7 text-white/65">{lang === "ar" ? "اختيارات مكملات وأساسيات تمرين تساعدك تمشي ناحية هدفك بثقة." : "Supplements and training essentials picked to help you move toward your goal with confidence."}</p>
+            <a
+              href="https://wa.me/201150301033"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-6 inline-flex min-h-11 items-center gap-2 bg-brand px-4 text-sm font-extrabold text-black transition hover:bg-brand-soft"
+            >
+              <MessageCircle size={17} />
+              {lang === "ar" ? "تواصل معنا على واتساب" : "Chat on WhatsApp"}
+              <ArrowUpLeft size={16} />
+            </a>
           </div>
 
           <FooterColumn title={t.nav.products}>
@@ -85,18 +86,19 @@ export function Footer() {
             <FooterLink href="/contact">{t.nav.contact}</FooterLink>
           </FooterColumn>
 
-          <FooterColumn title={t.footer.contactInfo}>
-            <ContactRow icon={<Phone size={15} />} label={t.footer.phone} value="+20 115 030 1033" href="tel:+201150301033" ltr />
-            <ContactRow icon={<Mail size={15} />} label="Website" value="keepfitsupplement.com" href="https://keepfitsupplement.com" ltr />
-            <ContactRow icon={<MapPin size={15} />} label={t.footer.address} value={t.footer.addressValue} />
-          </FooterColumn>
+          <div className="border-t border-white/10 pt-8 md:border-t-0 md:pt-0 lg:border-s lg:ps-8">
+            <FooterColumn title={t.footer.contactInfo}>
+              <ContactRow icon={<Phone size={15} />} label={t.footer.phone} value="+20 115 030 1033" href="tel:+201150301033" ltr />
+              <ContactRow icon={<Mail size={15} />} label="Website" value="keepfitsupplement.com" href="https://keepfitsupplement.com" ltr />
+              <ContactRow icon={<MapPin size={15} />} label={t.footer.address} value={t.footer.addressValue} />
+            </FooterColumn>
+            <div className="mt-7">
+              <NewsletterForm />
+            </div>
+          </div>
         </div>
 
-        <div className="mt-8">
-          <NewsletterForm />
-        </div>
-
-        <div className="mt-8 border-t border-white/10 pt-5">
+        <div className="mt-12 border-t border-white/10 pt-7">
           <p className="text-sm font-semibold text-white">{t.footer.paymentMethods}</p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {paymentLogos.map((logo) => (
@@ -193,24 +195,3 @@ function ContactRow({
   );
 }
 
-function SocialLink({
-  href,
-  label,
-  icon,
-}: {
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-}) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={label}
-      className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white/75 transition hover:border-white/35 hover:text-white"
-    >
-      {icon}
-    </a>
-  );
-}

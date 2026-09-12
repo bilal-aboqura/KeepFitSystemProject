@@ -14,7 +14,7 @@ import type { ResolvedBundle } from "@/lib/data/catalog";
 import { FadeIn, FadeInStagger } from "@/components/ui/fade-in";
 
 export function TrustGuaranteeSection() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const pillars = [
     { image: "/images/keepfit-easy-returns.png", title: t.home.trustReturn, desc: t.home.trustReturnDesc },
     { image: "/images/keepfit-cod-delivery.png", title: t.home.trustCod, desc: t.home.trustCodDesc },
@@ -22,23 +22,36 @@ export function TrustGuaranteeSection() {
   ];
 
   return (
-    <section className="border-y border-white/8 bg-[#080808] py-20 sm:py-24">
+    <section className="bg-[#080808] py-20 sm:py-28">
       <div className="mx-auto max-w-7xl px-5">
-        <FadeIn>
-          <h2 className="max-w-2xl font-heading text-3xl font-black text-white sm:text-4xl">
-            {t.home.trustTitle}
-          </h2>
+        <FadeIn className="grid gap-5 border-b border-white/15 pb-8 sm:grid-cols-[1.15fr_0.85fr] sm:items-end sm:pb-10">
+          <div>
+            <p className="text-sm font-extrabold text-brand" dir="ltr">KEEPFIT / YOUR ORDER</p>
+            <h2 className="mt-4 max-w-2xl font-heading text-3xl font-black text-white sm:text-5xl">
+              {t.home.trustTitle}
+            </h2>
+          </div>
+          <p className="max-w-md text-base leading-8 text-white/65 sm:justify-self-end">
+            {lang === "ar"
+              ? "سياسة شراء واضحة تخليك تطلب وأنت مطمّن من أول خطوة لحد وصول الشحنة لبابك."
+              : "A clear purchase policy that keeps every step reassuring, from checkout to your door."}
+          </p>
         </FadeIn>
-        <FadeInStagger className="mt-10 grid gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10 sm:grid-cols-3">
+        <FadeInStagger className="mt-8 grid gap-3 sm:grid-cols-3">
           {pillars.map(({ image, title, desc }) => (
-            <FadeIn key={title} className="overflow-hidden bg-[#0d0d0d]">
-              <div className="relative aspect-[4/3] bg-black">
-                <Image src={image} alt="" fill sizes="(max-width: 640px) 100vw, 33vw" className="object-contain" />
-              </div>
-              <div className="p-7 sm:p-8">
+            <FadeIn key={title} className="group relative aspect-[4/5] overflow-hidden border border-white/15 bg-black sm:aspect-[3/4]">
+              <Image
+                src={image}
+                alt=""
+                fill
+                sizes="(max-width: 640px) 100vw, 33vw"
+                className="object-cover object-top transition duration-700 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,5,5,0.02)_25%,rgba(5,5,5,0.92)_100%)]" />
+              <div className="absolute inset-x-0 bottom-0 p-6 sm:p-7">
                 <div className="h-px w-10 bg-brand" />
-                <h3 className="mt-5 text-lg font-black text-white">{title}</h3>
-                <p className="mt-3 text-base leading-7 text-white/60">{desc}</p>
+                <h3 className="mt-4 font-heading text-2xl font-black text-white">{title}</h3>
+                <p className="mt-3 text-sm leading-7 text-white/75">{desc}</p>
               </div>
             </FadeIn>
           ))}
@@ -57,22 +70,34 @@ export function WhyKeepFitSection() {
   ];
 
   return (
-    <section className="relative overflow-hidden py-20 sm:py-28">
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-[radial-gradient(circle_at_left,rgba(255,204,0,0.1),transparent_68%)]" />
-      <div className="relative mx-auto grid max-w-7xl gap-10 px-5 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
-        <FadeIn>
-          <h2 className="text-balance font-heading text-3xl font-black text-fg sm:text-5xl">
+    <section className="border-y border-black/10 bg-white py-20 sm:py-28">
+      <div className="mx-auto grid max-w-7xl gap-12 px-5 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
+        <FadeIn className="flex flex-col">
+          <p className="text-sm font-extrabold text-brand" dir="ltr">KEEPFIT / WHY US</p>
+          <h2 className="mt-4 text-balance font-heading text-3xl font-black text-fg sm:text-5xl">
             {t.home.whyTitle}
           </h2>
           <p className="mt-4 max-w-lg text-base leading-8 text-fg-dim">{t.home.whySub}</p>
+          <div className="relative mt-8 aspect-[4/3] overflow-hidden border border-black/15 bg-black">
+            <Image
+              src="/images/keepfit-goal-guidance.png"
+              alt="عميل يختار المكمل المناسب له داخل الجيم"
+              fill
+              sizes="(max-width: 1024px) 100vw, 42vw"
+              className="object-cover object-top"
+            />
+            <div className="absolute inset-x-0 bottom-0 bg-black/75 px-5 py-4 text-sm font-bold text-white">
+              {t.home.whyPro}
+            </div>
+          </div>
         </FadeIn>
-        <FadeInStagger className="divide-y divide-border border-y border-border">
+        <FadeInStagger className="border-t border-black/15">
           {reasons.map(({ image, title, desc }) => (
-            <FadeIn key={title} className="flex gap-5 py-7 first:pt-0 last:pb-0 sm:gap-7">
-              <div className="relative h-24 w-28 shrink-0 overflow-hidden rounded-lg border border-brand/70 sm:h-28 sm:w-36">
-                <Image src={image} alt="" fill sizes="144px" className="object-cover" />
+            <FadeIn key={title} className="grid grid-cols-[minmax(0,1fr)_7rem] gap-5 border-b border-black/15 py-6 sm:grid-cols-[minmax(0,1fr)_9rem] sm:gap-8 sm:py-8">
+              <div className="order-2 relative aspect-square overflow-hidden border border-brand/70">
+                <Image src={image} alt="" fill sizes="144px" className="object-cover object-top" />
               </div>
-              <div>
+              <div className="order-1 self-center">
                 <h3 className="text-lg font-black text-fg">{title}</h3>
                 <p className="mt-2 max-w-2xl text-base leading-7 text-fg-dim">{desc}</p>
               </div>
