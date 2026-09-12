@@ -1,7 +1,11 @@
 import { z } from "zod";
+import { normalizeCatalogSlug } from "./slug";
 
 const trimmed = (min: number, max: number) => z.string().trim().min(min).max(max);
 const optionalText = (max: number) => z.string().trim().max(max).optional().default("");
+export const catalogSlugSchema = z.string().trim().max(160)
+  .transform(normalizeCatalogSlug)
+  .pipe(z.string().min(1, "Enter an English name or an English URL slug").regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase English letters, numbers, and hyphens only"));
 
 export const skuSchema = trimmed(1, 80)
   .transform((value) => value.toUpperCase())
@@ -39,8 +43,30 @@ export const catalogVariantInputSchema = z.object({
   attributes: z.array(attributeAssignmentSchema).max(20).optional().default([]),
 });
 
+export const catalogRationalSchema = z.object({
+  numerator: z.number().int().positive("Packaging conversion values must be positive").max(1_000_000_000),
+  denominator: z.number().int().positive("Packaging conversion values must be positive").max(1_000_000_000),
+});
+
+export const packagingUnitInputSchema = z.object({
+  id: z.string().uuid(),
+  parent_unit_id: z.string().uuid().nullable().default(null),
+  code: z.string().trim().min(1).max(80).transform((value) => value.toUpperCase()).nullable().optional().default(null),
+  barcode: z.string().trim().min(1).max(120).nullable().optional().default(null),
+  label_en: trimmed(1, 120),
+  label_ar: trimmed(1, 120),
+  quantity_per_parent: catalogRationalSchema,
+  is_base_unit: z.boolean().default(false),
+  is_sellable: z.boolean().default(false),
+  is_default_sale_unit: z.boolean().default(false),
+  default_price_mode: z.enum(["explicit", "derived"]).default("derived"),
+  is_active: z.boolean().default(true),
+});
+
+export const packagingHierarchyInputSchema = z.array(packagingUnitInputSchema).min(1).max(32);
+
 export const catalogProductFieldsSchema = z.object({
-  slug: trimmed(1, 160).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  slug: catalogSlugSchema,
   category_id: z.string().uuid(),
   brand_id: z.string().uuid().nullable().optional(),
   name_en: trimmed(1, 200),
@@ -70,7 +96,7 @@ export const catalogProductInputSchema = catalogProductFieldsSchema.extend({
 });
 
 export const categoryInputSchema = z.object({
-  slug: trimmed(1, 120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  slug: catalogSlugSchema,
   name_en: trimmed(1, 160),
   name_ar: trimmed(1, 160),
   parent_id: z.string().uuid().nullable().optional(),
@@ -80,7 +106,7 @@ export const categoryInputSchema = z.object({
 });
 
 export const brandInputSchema = z.object({
-  slug: trimmed(1, 120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  slug: catalogSlugSchema,
   name_en: trimmed(1, 160),
   name_ar: trimmed(1, 160),
   description_en: optionalText(2_000),

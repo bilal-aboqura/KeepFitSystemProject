@@ -12,6 +12,7 @@ import { trackStoreEvent } from "@/lib/store-analytics";
 import type { ProductDetail } from "@/lib/data/catalog";
 import { VariantSelector } from "./variant-selector";
 import { ProductGallery } from "./product-gallery";
+import { SellableUnitSelector } from "./sellable-unit-selector";
 
 export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
   const { t, lang } = useLang();
@@ -21,14 +22,18 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
   const initialVariant = product.variants.find((variant) => variant.is_default) ?? product.variants[0];
   const [selectedId, setSelectedId] = useState(initialVariant?.id ?? "");
   const selectedVariant = product.variants.find((variant) => variant.id === selectedId) ?? initialVariant;
-  const out = !selectedVariant || selectedVariant.stock <= 0 || !selectedVariant.is_active;
+  const sellableUnits = selectedVariant?.packaging_units.filter((unit) => unit.is_active && unit.is_sellable) ?? [];
+  const initialUnit = sellableUnits.find((unit) => unit.is_default_sale_unit) ?? sellableUnits[0];
+  const [selectedUnitId, setSelectedUnitId] = useState(initialUnit?.id ?? "");
+  const selectedUnit = sellableUnits.find((unit) => unit.id === selectedUnitId) ?? initialUnit;
+  const out = !selectedVariant || !selectedUnit || selectedVariant.stock <= 0 || !selectedVariant.is_active;
   const ar = lang === "ar";
 
   const name = ar ? product.name_ar : product.name_en;
   const desc = ar ? product.long_desc_ar : product.long_desc_en;
   const image = selectedVariant?.media[0]?.public_url ?? product.images?.[0] ?? "/keepfit-logo.png";
-  const price = Number(selectedVariant?.base_price ?? product.price);
-  const compareAtPrice = Number(selectedVariant?.compare_at_price ?? product.compare_at_price);
+  const price = Number(selectedUnit?.compatibility_price ?? selectedVariant?.base_price ?? product.price);
+  const compareAtPrice = Number(selectedUnit?.compatibility_compare_at_price ?? selectedVariant?.compare_at_price ?? product.compare_at_price);
   const hasSale = Number.isFinite(compareAtPrice) && compareAtPrice > price;
   const savings = hasSale ? compareAtPrice - price : 0;
   const discountPercent = hasSale ? Math.round((savings / compareAtPrice) * 100) : 0;
@@ -43,8 +48,8 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
   }, [price, product.id]);
 
   function handleAdd() {
-    if (out || !selectedVariant) return;
-    addToCart({ id: selectedVariant.id, variant_id: selectedVariant.id, product_id: product.id, sku: selectedVariant.sku, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, variant_label_en: selectedVariant.label_en, variant_label_ar: selectedVariant.label_ar, price, image, stock: selectedVariant.stock }, qty);
+    if (out || !selectedVariant || !selectedUnit) return;
+    addToCart({ id: `${selectedVariant.id}:${selectedUnit.id}`, variant_id: selectedVariant.id, sellable_unit_id: selectedUnit.id, product_id: product.id, sku: selectedVariant.sku, unit_code: selectedUnit.code, unit_label_en: selectedUnit.label_en, unit_label_ar: selectedUnit.label_ar, base_quantity_num: selectedUnit.base_quantity.numerator, base_quantity_den: selectedUnit.base_quantity.denominator, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, variant_label_en: selectedVariant.label_en, variant_label_ar: selectedVariant.label_ar, price, image, stock: selectedVariant.stock }, qty);
     trackMetaEvent("AddToCart", productMetaParams({ id: selectedVariant.id, price, quantity: qty }));
     trackStoreEvent("add_to_cart");
     setAdded(true);
@@ -52,8 +57,8 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
   }
 
   function buyNow() {
-    if (out || !selectedVariant) return;
-    addToCart({ id: selectedVariant.id, variant_id: selectedVariant.id, product_id: product.id, sku: selectedVariant.sku, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, variant_label_en: selectedVariant.label_en, variant_label_ar: selectedVariant.label_ar, price, image, stock: selectedVariant.stock }, qty, { showPrompt: false });
+    if (out || !selectedVariant || !selectedUnit) return;
+    addToCart({ id: `${selectedVariant.id}:${selectedUnit.id}`, variant_id: selectedVariant.id, sellable_unit_id: selectedUnit.id, product_id: product.id, sku: selectedVariant.sku, unit_code: selectedUnit.code, unit_label_en: selectedUnit.label_en, unit_label_ar: selectedUnit.label_ar, base_quantity_num: selectedUnit.base_quantity.numerator, base_quantity_den: selectedUnit.base_quantity.denominator, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, variant_label_en: selectedVariant.label_en, variant_label_ar: selectedVariant.label_ar, price, image, stock: selectedVariant.stock }, qty, { showPrompt: false });
     trackMetaEvent("AddToCart", productMetaParams({ id: selectedVariant.id, price, quantity: qty }));
     trackStoreEvent("add_to_cart");
     router.push("/checkout");
@@ -100,7 +105,14 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
           </span>
         </div>
 
-        <VariantSelector variants={product.variants} selectedId={selectedVariant?.id ?? ""} onChange={(variant) => { setSelectedId(variant.id); setQty(1); }} />
+        <VariantSelector variants={product.variants} selectedId={selectedVariant?.id ?? ""} onChange={(variant) => {
+          const units = variant.packaging_units.filter((unit) => unit.is_active && unit.is_sellable);
+          setSelectedId(variant.id);
+          setSelectedUnitId((units.find((unit) => unit.is_default_sale_unit) ?? units[0])?.id ?? "");
+          setQty(1);
+        }} />
+
+        <SellableUnitSelector units={selectedVariant?.packaging_units ?? []} selectedId={selectedUnit?.id ?? ""} onChange={(unit) => { setSelectedUnitId(unit.id); setQty(1); }} lang={lang} />
 
         {selectedVariant?.sku && <p className="mt-3 text-xs text-fg-dim">SKU: {selectedVariant.sku}</p>}
 
@@ -155,7 +167,7 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
         <div className="mx-auto flex max-w-md items-center gap-3">
           <div className="min-w-0 shrink-0">
             <p className="text-xs text-fg-dim">
-              {qty} × {ar ? "قطعة" : "item"}
+              {qty} × {selectedUnit ? (ar ? selectedUnit.label_ar : selectedUnit.label_en) : (ar ? "قطعة" : "item")}
             </p>
             <p className="text-lg font-bold leading-tight text-brand">
               {formatPrice(price * qty, lang)}

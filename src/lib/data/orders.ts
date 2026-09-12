@@ -6,6 +6,9 @@ import { calcItemsSubtotal, calcOnlinePaymentDiscount } from "@/lib/pricing";
 import { is450MlDestination, is450MlProduct } from "@/lib/shipping-policy";
 import { resolvePurchasableVariants } from "@/lib/catalog/variants";
 import { CatalogError } from "@/lib/catalog/errors";
+import { deriveCompatibilityUnitPrice } from "@/lib/pricing";
+import { mapPackagingUnit } from "@/lib/catalog/packaging-commands";
+import type { CatalogPackagingUnit } from "@/lib/catalog/types";
 
 export interface CreateOrderInput {
   customer_name: string;
@@ -21,6 +24,7 @@ export interface CreateOrderInput {
   customer_id?: string | null;
   items: {
     variant_id?: string;
+    sellable_unit_id?: string;
     product_id?: string;
     quantity: number;
     image?: string;
@@ -43,6 +47,17 @@ interface ResolvedOrderVariant {
   base_price: number;
   stock: number;
   product: { slug?: string } | { slug?: string }[];
+}
+
+interface ResolvedOrderItem {
+  variant_id: string;
+  sellable_unit_id: string;
+  product_id: string;
+  price: number;
+  quantity: number;
+  image?: string;
+  offer_key?: string;
+  is_default_sale_unit: boolean;
 }
 
 /** Generate a short, human-friendly order number like XE-1A2B3C-240624 */
@@ -164,9 +179,20 @@ export async function createOrder(
   if (!sb || input.items.length === 0) return null;
 
   const checkoutSettings = await getCheckoutSettings();
-  const resolvedItems: { variant_id: string; product_id: string; price: number; quantity: number; image?: string; offer_key?: string }[] = [];
+  const resolvedItems: ResolvedOrderItem[] = [];
   const explicitIds = input.items.flatMap((item) => item.variant_id ? [item.variant_id] : []);
   const explicitVariants = new Map<string, ResolvedOrderVariant>((await resolvePurchasableVariants(explicitIds)).map((variant) => [variant.id, variant as unknown as ResolvedOrderVariant]));
+  const packagingByVariant = new Map<string, CatalogPackagingUnit[]>();
+  if (explicitIds.length) {
+    const { data, error } = await sb.from("variant_packaging_units")
+      .select("id,variant_id,parent_unit_id,code,barcode,label_en,label_ar,quantity_per_parent_num,quantity_per_parent_den,base_quantity_num,base_quantity_den,is_base_unit,is_sellable,is_default_sale_unit,default_price_mode,is_active,archived_at")
+      .in("variant_id", [...new Set(explicitIds)]).eq("is_active", true).is("archived_at", null);
+    if (error) throw error;
+    for (const row of data ?? []) {
+      const unit = mapPackagingUnit(row as unknown as Record<string, unknown>);
+      packagingByVariant.set(unit.variant_id!, [...(packagingByVariant.get(unit.variant_id!) ?? []), unit]);
+    }
+  }
   for (const item of input.items) {
     let variant: ResolvedOrderVariant | undefined = item.variant_id ? explicitVariants.get(item.variant_id) : undefined;
     if (!variant && item.product_id && !item.variant_id) {
@@ -178,12 +204,29 @@ export async function createOrder(
       else throw new CatalogError("This saved cart item has multiple or unavailable options. Choose the product again.", 409, "ambiguous_legacy_cart");
     }
     if (!variant) throw new CatalogError("The selected variant is no longer available.", 409, "inactive_variant");
+    let units = packagingByVariant.get(variant.id);
+    if (!units) {
+      const { data, error } = await sb.from("variant_packaging_units")
+        .select("id,variant_id,parent_unit_id,code,barcode,label_en,label_ar,quantity_per_parent_num,quantity_per_parent_den,base_quantity_num,base_quantity_den,is_base_unit,is_sellable,is_default_sale_unit,default_price_mode,is_active,archived_at")
+        .eq("variant_id", variant.id).eq("is_active", true).is("archived_at", null);
+      if (error) throw error;
+      units = (data ?? []).map((row) => mapPackagingUnit(row as unknown as Record<string, unknown>));
+      packagingByVariant.set(variant.id, units);
+    }
+    const defaultUnit = units.find((unit) => unit.is_sellable && unit.is_default_sale_unit);
+    const selectedUnit = item.sellable_unit_id
+      ? units.find((unit) => unit.id === item.sellable_unit_id && unit.is_sellable)
+      : defaultUnit;
+    if (!defaultUnit || !selectedUnit) {
+      throw new CatalogError("The selected Sellable Unit is no longer available. Choose the product again.", 409, "inactive_sellable_unit");
+    }
     if (Number(variant.stock) < item.quantity) throw new CatalogError("The selected quantity is no longer available.", 409, "variant_stock_changed");
     const product = Array.isArray(variant.product) ? variant.product[0] : variant.product;
-    const orderBumpPrice = item.offer === "order_bump" && product && checkoutSettings.bumpProductSlugs.includes(String(product.slug))
+    const isOrderBump = item.offer === "order_bump" && selectedUnit.is_default_sale_unit && product && checkoutSettings.bumpProductSlugs.includes(String(product.slug));
+    const resolvedPrice = isOrderBump
       ? checkoutSettings.bumpPrice
-      : Number(variant.base_price);
-    resolvedItems.push({ variant_id: variant.id, product_id: variant.product_id, price: orderBumpPrice, quantity: item.quantity, image: item.image, offer_key: item.offer_key });
+      : deriveCompatibilityUnitPrice(Number(variant.base_price), selectedUnit, defaultUnit);
+    resolvedItems.push({ variant_id: variant.id, sellable_unit_id: selectedUnit.id, product_id: variant.product_id, price: resolvedPrice, quantity: item.quantity, image: item.image, offer_key: item.offer_key, is_default_sale_unit: selectedUnit.is_default_sale_unit });
   }
 
   const bundleKeys = [...new Set(resolvedItems.flatMap((item) => item.offer_key ? [item.offer_key] : []))];
@@ -194,7 +237,7 @@ export async function createOrder(
       const submitted = resolvedItems.filter((item) => item.offer_key === key);
       const expectedIds = bundle?.products.map((product) => product.id).sort() ?? [];
       const submittedIds = submitted.map((item) => item.product_id).sort();
-      if (!bundle || submitted.some((item) => item.quantity !== 1) || expectedIds.join("|") !== submittedIds.join("|")) return null;
+      if (!bundle || submitted.some((item) => item.quantity !== 1 || !item.is_default_sale_unit) || expectedIds.join("|") !== submittedIds.join("|")) return null;
       const ratio = bundle.originalPrice > 0 ? bundle.bundlePrice / bundle.originalPrice : 1;
       for (const item of submitted) item.price = Math.round(item.price * ratio * 100) / 100;
     }
@@ -231,7 +274,7 @@ export async function createOrder(
         items_total: itemsTotal, shipping_cost: shippingCost, discount: totalDiscount,
         discount_code: codeDiscount?.code ?? null, grand_total: grandTotal, payment_method: input.payment_method,
       },
-      p_items: resolvedItems.map((item) => ({ variant_id: item.variant_id, product_id: item.product_id, price: item.price, quantity: item.quantity, image: item.image })), p_grant_hash: grant?.hash ?? null,
+      p_items: resolvedItems.map((item) => ({ variant_id: item.variant_id, sellable_unit_id: item.sellable_unit_id, product_id: item.product_id, price: item.price, quantity: item.quantity, image: item.image })), p_grant_hash: grant?.hash ?? null,
     });
     if (!error && data) return { ...data, confirmationGrant: grant } as CreatedOrder;
     if (error?.code !== "23505") return null;
@@ -261,9 +304,18 @@ export interface OrderForConfirmation {
     id: string;
     product_id: string;
     variant_id: string | null;
+    sellable_unit_id: string | null;
     sku: string | null;
+    sellable_unit_code: string | null;
     variant_label_en: string | null;
     variant_label_ar: string | null;
+    unit_label_en: string | null;
+    unit_label_ar: string | null;
+    base_quantity_per_unit_num: number | null;
+    base_quantity_per_unit_den: number | null;
+    equivalent_base_quantity_num: number | null;
+    equivalent_base_quantity_den: number | null;
+    line_total: number | null;
     name_en: string;
     name_ar: string | null;
     price: number;
@@ -280,7 +332,7 @@ export async function getOrderByNumber(
   const { data } = await sb
     .from("orders")
     .select(
-      "id, order_number, customer_name, customer_phone, alt_phone, governorate, city, address, notes, items_total, shipping_cost, discount, grand_total, payment_method, payment_status, fulfillment_status, created_at, order_items(id, product_id, variant_id, sku, name_en, name_ar, variant_label_en, variant_label_ar, price, quantity, image)",
+      "id, order_number, customer_name, customer_phone, alt_phone, governorate, city, address, notes, items_total, shipping_cost, discount, grand_total, payment_method, payment_status, fulfillment_status, created_at, order_items(id, product_id, variant_id, sellable_unit_id, sku, sellable_unit_code, name_en, name_ar, variant_label_en, variant_label_ar, unit_label_en, unit_label_ar, base_quantity_per_unit_num, base_quantity_per_unit_den, equivalent_base_quantity_num, equivalent_base_quantity_den, price, line_total, quantity, image)",
     )
     .eq("order_number", orderNumber)
     .maybeSingle();

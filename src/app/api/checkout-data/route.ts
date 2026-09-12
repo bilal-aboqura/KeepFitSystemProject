@@ -16,19 +16,22 @@ export async function GET() {
     : null;
   const bumpCandidate = configuredBumpProduct ?? await getCheapestInCategory("vitamins");
   const bumpProduct = bumpCandidate?.variant_count === 1 && bumpCandidate.default_variant ? bumpCandidate : null;
+  const bumpUnit = bumpProduct?.default_variant?.packaging_units.find((unit) => unit.is_active && unit.is_sellable && unit.is_default_sale_unit)
+    ?? bumpProduct?.default_variant?.packaging_units.find((unit) => unit.is_active && unit.is_sellable);
 
   return NextResponse.json({
     governorates,
     freeShippingThreshold: settings.freeShippingThreshold,
-    bumpProduct: bumpProduct
+    bumpProduct: bumpProduct && bumpUnit
       ? {
           id: bumpProduct.id,
           variant_id: bumpProduct.default_variant?.id,
+          sellable_unit_id: bumpUnit.id,
           slug: bumpProduct.slug,
           name_en: bumpProduct.name_en,
           name_ar: bumpProduct.name_ar,
           originalPrice: Number(bumpProduct.price),
-          bumpPrice: selectedSlug ? settings.bumpPrice : Number(bumpProduct.default_variant?.base_price ?? bumpProduct.price),
+          bumpPrice: selectedSlug ? settings.bumpPrice : Number(bumpUnit.compatibility_price ?? bumpProduct.price),
           desc_en: settings.bumpDesc_en,
           desc_ar: settings.bumpDesc_ar,
           image: bumpProduct.images?.[0] ?? null,

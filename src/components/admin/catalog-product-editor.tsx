@@ -6,6 +6,9 @@ import { Plus, Trash2 } from "lucide-react";
 import type { AttributeDefinition, CatalogAttributeAssignment, CatalogBrand, CatalogCategory, CatalogProduct, CatalogVariant } from "@/lib/catalog/types";
 import { useToast } from "./toast";
 import { CatalogMediaManager } from "./catalog-media-manager";
+import { CatalogPackagingEditor } from "./catalog-packaging-editor";
+import { normalizeCatalogSlug } from "@/lib/catalog/slug";
+import { catalogApiErrorMessage } from "@/lib/catalog/client-errors";
 
 type EditableVariant = Pick<CatalogVariant, "id" | "sku" | "barcode" | "label_en" | "label_ar" | "base_price" | "compare_at_price" | "stock" | "is_default" | "is_active" | "attributes" | "media">;
 
@@ -65,17 +68,17 @@ export function CatalogProductEditor({ product, categories, brands, attributes, 
     event.preventDefault();
     setSaving(true);
     try {
-      const slug = form.slug.trim() || form.name_en.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const slug = normalizeCatalogSlug(form.slug) || normalizeCatalogSlug(form.name_en);
       const productPayload = { ...form, slug, category_id: form.category_id || null, brand_id: form.brand_id || null,
         variants: variants.map(createVariantPayload), specifications };
       if (!product) {
         const response = await fetch("/api/admin/catalog/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(productPayload) });
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Could not create product");
+        if (!response.ok) throw new Error(catalogApiErrorMessage(result, lang, ar ? "تعذر إنشاء المنتج" : "Could not create product"));
       } else {
-        const response = await fetch(`/api/admin/catalog/products/${product.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+        const response = await fetch(`/api/admin/catalog/products/${product.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, slug }) });
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Could not update product");
+        if (!response.ok) throw new Error(catalogApiErrorMessage(result, lang, ar ? "تعذر تحديث المنتج" : "Could not update product"));
         const specificationResponse = await fetch("/api/admin/catalog/attributes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "specifications", product_id: product.id, data: specifications }) });
         if (!specificationResponse.ok) throw new Error("Could not update product specifications");
         for (const variant of variants) {
@@ -118,7 +121,7 @@ export function CatalogProductEditor({ product, categories, brands, attributes, 
         <h2 className="sm:col-span-2 font-semibold text-fg">{ar ? "بيانات المنتج" : "Product information"}</h2>
         <Field label="English name"><input required value={form.name_en} onChange={(e) => setForm({ ...form, name_en: e.target.value })} className={inputClass} /></Field>
         <Field label="الاسم العربي"><input required dir="rtl" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} className={inputClass} /></Field>
-        <Field label="Slug"><input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} className={inputClass} /></Field>
+        <Field label={ar ? "الرابط الإنجليزي (يُنشأ تلقائيًا)" : "URL slug (generated automatically)"}><input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} onBlur={() => setForm((current) => ({ ...current, slug: normalizeCatalogSlug(current.slug) || normalizeCatalogSlug(current.name_en) }))} placeholder={ar ? "اتركه فارغًا للإنشاء من الاسم الإنجليزي" : "Leave blank to use the English name"} className={inputClass} /></Field>
         <Field label={ar ? "الفئة" : "Category"}><select required value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })} className={inputClass}><option value="">—</option>{categories.map((item) => <option key={item.id} value={item.id}>{ar ? item.name_ar : item.name_en}</option>)}</select></Field>
         <Field label={ar ? "العلامة التجارية" : "Brand"}><select value={form.brand_id} onChange={(e) => setForm({ ...form, brand_id: e.target.value })} className={inputClass}><option value="">—</option>{brands.map((item) => <option key={item.id} value={item.id}>{ar ? item.name_ar : item.name_en}</option>)}</select></Field>
         <div className="flex items-center gap-6 pt-6"><label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />{ar ? "نشط" : "Active"}</label><label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={form.is_featured} onChange={(e) => setForm({ ...form, is_featured: e.target.checked })} />{ar ? "مميز" : "Featured"}</label></div>
@@ -133,7 +136,7 @@ export function CatalogProductEditor({ product, categories, brands, attributes, 
         {variants.map((variant, index) => (
           <article key={variant.id || index} className="rounded-xl border border-border bg-slate-50/60 p-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="SKU"><input required readOnly={Boolean(variant.id)} value={variant.sku} onChange={(e) => updateVariant(index, { sku: e.target.value })} className={inputClass} /></Field>
+              <Field label="SKU"><input required readOnly={Boolean(variant.id)} pattern="[A-Za-z0-9][A-Za-z0-9._/-]*" title={ar ? "استخدم حروفًا إنجليزية وأرقامًا و . _ / - فقط" : "Use English letters, numbers, dot, underscore, slash, or hyphen only"} value={variant.sku} onChange={(e) => updateVariant(index, { sku: e.target.value })} className={inputClass} /></Field>
               <Field label={ar ? "الباركود" : "Barcode"}><input value={variant.barcode ?? ""} onChange={(e) => updateVariant(index, { barcode: e.target.value || null })} className={inputClass} /></Field>
               <Field label={ar ? "السعر" : "Base price"}><input required type="number" min="0" step="0.01" value={variant.base_price} onChange={(e) => updateVariant(index, { base_price: Number(e.target.value) })} className={inputClass} /></Field>
               <Field label={ar ? "المخزون" : "Stock"}><input required type="number" min="0" value={variant.stock} onChange={(e) => updateVariant(index, { stock: Number(e.target.value) })} className={inputClass} /></Field>
@@ -143,6 +146,7 @@ export function CatalogProductEditor({ product, categories, brands, attributes, 
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-5"><label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={variant.is_active} onChange={(e) => updateVariant(index, { is_active: e.target.checked })} />{ar ? "نشط" : "Active"}</label><label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={variant.is_default} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => ({ ...item, is_default: itemIndex === index ? e.target.checked : false })))} />{ar ? "افتراضي" : "Default"}</label>{variant.id ? <button type="button" onClick={() => archiveVariant(variant.id)} className="ms-auto inline-flex min-h-11 items-center gap-2 text-sm font-medium text-red-600"><Trash2 size={18}/>{ar ? "أرشفة" : "Archive"}</button> : variants.length > 1 && <button type="button" onClick={() => setVariants((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="ms-auto text-red-600"><Trash2 size={18} /></button>}</div>
             {product && variant.id && <div className="mt-4"><CatalogMediaManager productId={product.id} variantId={variant.id} initialMedia={variant.media} lang={lang} /></div>}
+            {product && variant.id && <CatalogPackagingEditor variantId={variant.id} initialUnits={product.variants.find((item) => item.id === variant.id)?.packaging_units ?? []} lang={lang} />}
           </article>
         ))}
       </section>

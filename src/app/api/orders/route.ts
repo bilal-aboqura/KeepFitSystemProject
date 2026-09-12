@@ -12,12 +12,13 @@ import { CatalogError } from "@/lib/catalog/errors";
 
 const ItemSchema = z.object({
   variant_id: z.string().uuid().optional(),
+  sellable_unit_id: z.string().uuid().optional(),
   product_id: z.string().uuid().optional(),
   quantity: z.number().int().positive(),
   image: z.string().optional(),
   offer: z.literal("order_bump").optional(),
   offer_key: z.string().trim().min(1).max(80).optional(),
-}).refine((item) => Boolean(item.variant_id || item.product_id), { error: "A variant is required" });
+}).refine((item) => Boolean((item.variant_id && item.sellable_unit_id) || (!item.variant_id && item.product_id)), { error: "A Variant and Sellable Unit are required" });
 
 
 const BodySchema = z.object({

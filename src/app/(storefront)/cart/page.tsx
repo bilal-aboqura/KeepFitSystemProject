@@ -90,6 +90,7 @@ export default function CartPage() {
                     <Link href={`/product/${item.slug}`} className="line-clamp-2 text-sm font-medium text-fg transition hover:text-brand">
                       {name}
                     </Link>
+                    {(item.unit_label_en || item.variant_label_en) && <p className="mt-1 text-xs text-fg-dim">{[ar ? item.variant_label_ar : item.variant_label_en, ar ? item.unit_label_ar : item.unit_label_en].filter(Boolean).join(" · ")}</p>}
                     <p className="mt-1 text-sm font-semibold text-brand">
                       {formatPrice(item.price, lang)}
                     </p>

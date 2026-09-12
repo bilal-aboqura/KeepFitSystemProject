@@ -4,10 +4,18 @@ import { withTestDatabase, testCustomer } from "../../helpers/supabase-test-db";
 it("keeps the additive migration identical to the canonical schema feature section", async () => {
   const migration = await readFile("supabase/migrations/001_customer_identity.sql", "utf8");
   const schema = await readFile("supabase/schema.sql", "utf8");
+  const normalizedSchema = schema.replaceAll("\r\n", "\n");
   const marker = "-- Feature 001 canonical schema (kept identical to its additive migration).";
-  const nextMarker = /-- =====================================================================\r?\n-- Feature 002:/;
-  const featureSection = schema.split(marker)[1].split(nextMarker)[0];
+  const nextMarker = "-- =====================================================================\n-- Feature 002:";
+  const featureSection = normalizedSchema.split(marker)[1].split(nextMarker)[0];
   expect(featureSection.trim().replaceAll("\r\n", "\n")).toBe(migration.trim().replaceAll("\r\n", "\n"));
+});
+it("keeps the Feature 003b migration identical to its ordered canonical schema section", async () => {
+  const migration = (await readFile("supabase/migrations/003b_catalog_packaging_units.sql", "utf8")).replaceAll("\r\n", "\n").trim();
+  const schema = (await readFile("supabase/schema.sql", "utf8")).replaceAll("\r\n", "\n");
+  const marker = "-- Canonical Feature 003b section, ordered after the Feature 003 base schema.";
+  const featureSection = schema.split(marker)[1].split("notify pgrst, 'reload schema';")[0].trim();
+  expect(featureSection).toBe(migration);
 });
 it.skipIf(!process.env.DIRECT_URL)("migration is repeatable, grants are private, identities resolve once, phones can be shared", async () => withTestDatabase(async db => {
   const sql = await readFile("supabase/migrations/001_customer_identity.sql","utf8");

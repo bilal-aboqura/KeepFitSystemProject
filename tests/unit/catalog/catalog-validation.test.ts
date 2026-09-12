@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { catalogProductInputSchema, definingAttributeFingerprint, mediaUploadIntentSchema, skuSchema } from "@/lib/catalog/validation";
+import { brandInputSchema, catalogProductInputSchema, categoryInputSchema, definingAttributeFingerprint, mediaUploadIntentSchema, skuSchema } from "@/lib/catalog/validation";
+import { normalizeCatalogSlug, normalizeCatalogSlugInput } from "@/lib/catalog/slug";
+import { catalogApiErrorMessage } from "@/lib/catalog/client-errors";
 import { resolveVariantSelection } from "@/components/storefront/variant-selector";
 import type { CatalogVariant } from "@/lib/catalog/types";
 
@@ -9,6 +11,14 @@ const av = "33333333-3333-4333-8333-333333333333";
 const bv = "44444444-4444-4444-8444-444444444444";
 
 describe("catalog validation", () => {
+  it("normalizes typed slugs and falls back to the English name", () => {
+    expect(normalizeCatalogSlug("  Whey Protein 2 LB ")).toBe("whey-protein-2-lb");
+    expect(normalizeCatalogSlugInput({ slug: "بروتين", name_en: "Whey Protein" })).toMatchObject({ slug: "whey-protein" });
+    expect(normalizeCatalogSlugInput({ name_en: "Changed name" }, false)).toEqual({ name_en: "Changed name" });
+    expect(brandInputSchema.parse(normalizeCatalogSlugInput({ slug: "علامة", name_en: "New Brand", name_ar: "علامة جديدة" }))).toMatchObject({ slug: "new-brand" });
+    expect(categoryInputSchema.parse(normalizeCatalogSlugInput({ slug: "فئة", name_en: "New Category", name_ar: "فئة جديدة" }))).toMatchObject({ slug: "new-category" });
+    expect(catalogApiErrorMessage({ error: "Validation failed", issues: [{ path: ["variants", 0, "sku"], message: "Invalid SKU format" }] }, "ar", "تعذر الحفظ")).toContain("SKU");
+  });
   it("normalizes SKU identity and rejects unsafe characters", () => {
     expect(skuSchema.parse(" whey-2lb ")).toBe("WHEY-2LB");
     expect(() => skuSchema.parse("bad sku")).toThrow();

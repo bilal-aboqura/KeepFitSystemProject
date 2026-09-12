@@ -24,6 +24,30 @@
 
 **Alternatives considered**: Treating every attribute as Variant-defining creates invalid/unnecessary combinations and confusing customer UI.
 
+## Decision: Make Sellable Unit a stable Variant-owned identity
+
+**Rationale**: A Variant identifies the product configuration, while Box, Strip, Ampoule, Tablet, Bottle, and similar levels identify different commercial quantities of that same Variant. Stable Sellable Unit identity lets cart, orders, pricing, and later inventory distinguish three Boxes from three Ampoules without creating duplicate Products or Variants.
+
+**Alternatives considered**: Encoding the unit in free-form labels makes requests and history ambiguous. Creating one Variant per package level corrupts the Variant/attribute model and duplicates product identity. Treating every contained level as sellable ignores explicit business policy.
+
+## Decision: Model one deterministic exact packaging hierarchy per Variant
+
+**Rationale**: A Variant-owned parent chain with one canonical base unit, one parent per contained level, and exact positive rational conversions represents arbitrary depth without category-specific columns. Normalized base equivalents support future inventory/purchasing while a full authoritative graph validation rejects cycles, self-links, cross-Variant edges, disconnected levels, and ambiguous paths.
+
+**Alternatives considered**: Category-specific Box/Strip/Tablet columns require recurring schema changes. Floating-point conversion risks inconsistent totals. Unvalidated generic graphs permit ambiguous conversion and historical reinterpretation. Description-only quantities cannot be authoritative.
+
+## Decision: Keep Variant SKU canonical and allow optional unit operational codes
+
+**Rationale**: Variant remains the canonical product configuration and owns the permanent SKU. Each packaging level has a stable UUID and may carry a distinct immutable operational code or barcode when picking, scanning, or external systems require it. Orders snapshot both identities; no duplicate Product or Variant is invented for packaging.
+
+**Alternatives considered**: Reusing one SKU as the only unit identity cannot distinguish package levels operationally. Requiring a full SKU for every non-sellable level creates unnecessary identifiers. Replacing the Variant SKU with unit codes breaks the approved Variant contract.
+
+## Decision: Feature 003 owns conversion facts; Feature 004 owns monetary derivation
+
+**Rationale**: Catalog is authoritative for Variant/Unit ownership, sellability, default/base units, exact conversion paths, and pricing-behavior hints. The Pricing Engine is authoritative for Customer context, explicit price precedence, nearest-parent price selection within that same context, exact-rational calculation, monetary rounding, and line totals. This prevents Retail prices from leaking into Wholesale derivation and keeps browser inputs non-authoritative.
+
+**Alternatives considered**: Calculating derived money in Catalog duplicates Feature 004 and cannot honor Customer/List context. Letting the browser divide package prices creates inconsistent rounding and price manipulation. Storing one universal derived price is invalid when Customer contexts differ.
+
 ## Decision: Use R2 S3-compatible presigned PUT uploads with server confirmation
 
 **Rationale**: Cloudflare R2 supports server-generated, time-limited presigned PUT URLs with content-type constraints; the server can authorize the Admin, generate a stable key, then verify and persist the media record after upload. This avoids streaming large files through the application and never exposes permanent credentials. [Cloudflare R2 presigned URL docs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)

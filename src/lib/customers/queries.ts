@@ -3,7 +3,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/server";
 import type { OrderForConfirmation } from "@/lib/data/orders";
 import { hashConfirmationSecret } from "./grants";
 export { confirmationGrantCookieName } from "./grants";
-const detailFields = "id, order_number, customer_name, customer_phone, alt_phone, governorate, city, address, notes, items_total, shipping_cost, discount, grand_total, payment_method, payment_status, fulfillment_status, created_at, order_items(id, product_id, variant_id, sku, name_en, name_ar, variant_label_en, variant_label_ar, price, quantity, image)";
+const detailFields = "id, order_number, customer_name, customer_phone, alt_phone, governorate, city, address, notes, items_total, shipping_cost, discount, grand_total, payment_method, payment_status, fulfillment_status, created_at, order_items(id, product_id, variant_id, sellable_unit_id, sku, sellable_unit_code, name_en, name_ar, variant_label_en, variant_label_ar, unit_label_en, unit_label_ar, base_quantity_per_unit_num, base_quantity_per_unit_den, equivalent_base_quantity_num, equivalent_base_quantity_den, price, line_total, quantity, image)";
 export async function hasGuestConfirmationGrant(orderId: string, secret?: string) {
   if (!secret || !/^[A-Za-z0-9_-]{43}$/.test(secret)) return false;
   const sb = getSupabaseServiceClient();

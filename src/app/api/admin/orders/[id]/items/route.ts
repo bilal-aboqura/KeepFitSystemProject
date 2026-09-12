@@ -19,8 +19,24 @@ const BodySchema = z.object({
 type ExistingLine = {
   id: string;
   product_id: string | null;
+  variant_id: string | null;
+  sellable_unit_id: string | null;
+  sku: string | null;
+  sellable_unit_code: string | null;
   name_en: string;
   name_ar: string | null;
+  product_name_en: string | null;
+  product_name_ar: string | null;
+  variant_label_en: string | null;
+  variant_label_ar: string | null;
+  unit_label_en: string | null;
+  unit_label_ar: string | null;
+  units_per_sold_package_num: number | null;
+  units_per_sold_package_den: number | null;
+  base_quantity_per_unit_num: number | null;
+  base_quantity_per_unit_den: number | null;
+  equivalent_base_quantity_num: number | null;
+  equivalent_base_quantity_den: number | null;
   price: number;
   image: string | null;
 };
@@ -55,7 +71,7 @@ export async function PUT(
 
   const { data: order } = await supabase
     .from("orders")
-    .select("id, governorate, city, payment_method, discount_code, order_items(id, product_id, name_en, name_ar, price, image)")
+    .select("id, governorate, city, payment_method, discount_code, order_items(id, product_id, variant_id, sellable_unit_id, sku, sellable_unit_code, name_en, name_ar, product_name_en, product_name_ar, variant_label_en, variant_label_ar, unit_label_en, unit_label_ar, units_per_sold_package_num, units_per_sold_package_den, base_quantity_per_unit_num, base_quantity_per_unit_den, equivalent_base_quantity_num, equivalent_base_quantity_den, price, image)")
     .eq("id", id)
     .maybeSingle();
   if (!order) {
@@ -84,6 +100,21 @@ export async function PUT(
   const productMap = new Map(
     ((products ?? []) as CatalogProduct[]).map((product) => [product.id, product]),
   );
+  const { data: variants, error: variantsError } = requestedProductIds.length
+    ? await supabase.from("product_variants")
+        .select("id,product_id,sku,label_en,label_ar,base_price")
+        .in("product_id", requestedProductIds).eq("is_default", true).eq("is_active", true).is("archived_at", null)
+    : { data: [], error: null };
+  if (variantsError) return NextResponse.json({ error: variantsError.message }, { status: 400 });
+  const variantMap = new Map((variants ?? []).map((variant) => [variant.product_id, variant]));
+  const variantIds = (variants ?? []).map((variant) => variant.id);
+  const { data: units, error: unitsError } = variantIds.length
+    ? await supabase.from("variant_packaging_units")
+        .select("id,variant_id,code,label_en,label_ar,quantity_per_parent_num,quantity_per_parent_den,base_quantity_num,base_quantity_den")
+        .in("variant_id", variantIds).eq("is_default_sale_unit", true).eq("is_sellable", true).eq("is_active", true).is("archived_at", null)
+    : { data: [], error: null };
+  if (unitsError) return NextResponse.json({ error: unitsError.message }, { status: 400 });
+  const unitMap = new Map((units ?? []).map((unit) => [unit.variant_id, unit]));
 
   const normalizedItems = [];
   const usedLineIds = new Set<string>();
@@ -97,8 +128,24 @@ export async function PUT(
       normalizedItems.push({
         id: line.id,
         product_id: line.product_id,
+        variant_id: line.variant_id,
+        sellable_unit_id: line.sellable_unit_id,
+        sku: line.sku,
+        sellable_unit_code: line.sellable_unit_code,
         name_en: line.name_en,
         name_ar: line.name_ar,
+        product_name_en: line.product_name_en,
+        product_name_ar: line.product_name_ar,
+        variant_label_en: line.variant_label_en,
+        variant_label_ar: line.variant_label_ar,
+        unit_label_en: line.unit_label_en,
+        unit_label_ar: line.unit_label_ar,
+        units_per_sold_package_num: line.units_per_sold_package_num,
+        units_per_sold_package_den: line.units_per_sold_package_den,
+        base_quantity_per_unit_num: line.base_quantity_per_unit_num,
+        base_quantity_per_unit_den: line.base_quantity_per_unit_den,
+        equivalent_base_quantity_num: line.base_quantity_per_unit_num === null ? null : Number(line.base_quantity_per_unit_num) * requested.quantity,
+        equivalent_base_quantity_den: line.base_quantity_per_unit_den,
         price: Number(line.price),
         quantity: requested.quantity,
         image: line.image,
@@ -107,15 +154,33 @@ export async function PUT(
     }
 
     const product = requested.product_id ? productMap.get(requested.product_id) : null;
-    if (!product) {
-      return NextResponse.json({ error: "A selected product no longer exists" }, { status: 422 });
+    const variant = product ? variantMap.get(product.id) : null;
+    const unit = variant ? unitMap.get(variant.id) : null;
+    if (!product || !variant || !unit) {
+      return NextResponse.json({ error: "A selected product needs one active default Variant and Sellable Unit" }, { status: 422 });
     }
     normalizedItems.push({
       id: null,
       product_id: product.id,
+      variant_id: variant.id,
+      sellable_unit_id: unit.id,
+      sku: variant.sku,
+      sellable_unit_code: unit.code,
       name_en: product.name_en,
       name_ar: product.name_ar,
-      price: Number(product.price),
+      product_name_en: product.name_en,
+      product_name_ar: product.name_ar,
+      variant_label_en: variant.label_en,
+      variant_label_ar: variant.label_ar,
+      unit_label_en: unit.label_en,
+      unit_label_ar: unit.label_ar,
+      units_per_sold_package_num: unit.quantity_per_parent_num,
+      units_per_sold_package_den: unit.quantity_per_parent_den,
+      base_quantity_per_unit_num: unit.base_quantity_num,
+      base_quantity_per_unit_den: unit.base_quantity_den,
+      equivalent_base_quantity_num: Number(unit.base_quantity_num) * requested.quantity,
+      equivalent_base_quantity_den: unit.base_quantity_den,
+      price: Number(variant.base_price),
       quantity: requested.quantity,
       image: product.images?.[0] ?? null,
     });

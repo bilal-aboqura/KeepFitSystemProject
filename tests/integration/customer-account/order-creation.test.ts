@@ -3,8 +3,13 @@ import { randomUUID } from "node:crypto";
 import { withTestDatabase,testCustomer,asCustomer } from "../../helpers/supabase-test-db";
 it.skipIf(!process.env.DIRECT_URL)("orders, items, association and guest grant commit together; snapshots and RLS are isolated",async()=>withTestDatabase(async db=>{
   const a=await testCustomer(db);const b=await testCustomer(db);
+  const categoryId=randomUUID();const productId=randomUUID();const variantId=randomUUID();
+  await db.query("insert into categories(id,slug,name_en,name_ar) values($1,$2,'Order tests','اختبارات الطلبات')",[categoryId,`order-tests-${categoryId}`]);
+  await db.query("insert into products(id,slug,category_id,name_en,name_ar,price,stock) values($1,$2,$3,'Snapshot Product','منتج الاختبار',100,10)",[productId,`snapshot-product-${productId}`,categoryId]);
+  await db.query("insert into product_variants(id,product_id,sku,label_en,label_ar,base_price,stock,is_default,combination_fingerprint) values($1,$2,$3,'Default','افتراضي',100,10,true,'default')",[variantId,productId,`ORDER-${variantId}`]);
+  const sellableUnitId=(await db.query("select id from variant_packaging_units where variant_id=$1 and is_default_sale_unit",[variantId])).rows[0].id;
   const order={order_number:"TEST-"+randomUUID(),customer_name:"Snapshot Name",customer_phone:"01012345678",alt_phone:"01112345678",governorate:"Cairo",city:"Nasr",address:"15 Example St",items_total:100,shipping_cost:120,discount:0,grand_total:220,payment_method:"cod",customer_id:a.id,user_id:a.authId};
-  const items=[{name_en:"Snapshot Product",price:100,quantity:1}];
+  const items=[{variant_id:variantId,sellable_unit_id:sellableUnitId,price:100,quantity:1}];
   const create=async(o:object,i:object[],hash:string|null=null)=>(await db.query("select customer_create_order($1,$2,$3) as o",[o,JSON.stringify(i),hash])).rows[0].o;
   const saved=await create(order,items);
   await db.query("select customer_profile_update($1,'Changed Name','01112345678')",[a.id]);
@@ -13,7 +18,7 @@ it.skipIf(!process.env.DIRECT_URL)("orders, items, association and guest grant c
   expect((await db.query("select count(*)::int as n from order_confirmation_grants where order_id=$1",[guest.id])).rows[0].n).toBe(1);
   await db.query("savepoint failed_order");
   const failedNumber="TEST-"+randomUUID();
-  await expect(create({...order,order_number:failedNumber},[{...items[0],product_id:randomUUID()}])).rejects.toThrow();
+  await expect(create({...order,order_number:failedNumber},[{...items[0],sellable_unit_id:randomUUID()}])).rejects.toThrow();
   await db.query("rollback to failed_order");
   expect((await db.query("select id from orders where order_number=$1",[failedNumber])).rowCount).toBe(0);
   await asCustomer(db,b.authId);

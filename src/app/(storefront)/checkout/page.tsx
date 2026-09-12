@@ -30,6 +30,7 @@ import type { CustomerAddress } from "@/lib/customers/types";
 interface BumpProduct {
   id: string;
   variant_id: string;
+  sellable_unit_id: string;
   slug: string;
   name_en: string;
   name_ar: string;
@@ -172,11 +173,12 @@ export default function CheckoutPage() {
     }
     setSubmitting(true);
     try {
-      const orderItems: { variant_id?: string; product_id?: string; quantity: number; image: string; offer?: "order_bump"; offer_key?: string }[] =
-        items.map((i) => ({ variant_id: i.variant_id, product_id: i.product_id ?? (i.variant_id ? undefined : i.id), quantity: i.quantity, image: i.image, offer_key: i.offer_key }));
+      const orderItems: { variant_id?: string; sellable_unit_id?: string; product_id?: string; quantity: number; image: string; offer?: "order_bump"; offer_key?: string }[] =
+        items.map((i) => ({ variant_id: i.variant_id, sellable_unit_id: i.sellable_unit_id, product_id: i.product_id ?? (i.variant_id ? undefined : i.id), quantity: i.quantity, image: i.image, offer_key: i.offer_key }));
       if (bumpAdded && bumpProduct) {
         orderItems.push({
           variant_id: bumpProduct.variant_id,
+          sellable_unit_id: bumpProduct.sellable_unit_id,
           product_id: bumpProduct.id,
           offer: "order_bump",
           quantity: 1,
@@ -188,7 +190,7 @@ export default function CheckoutPage() {
       const data = await res.json();
       if (!res.ok && data.redirect === "/account/complete-profile") { router.push("/account/complete-profile?next=%2Fcheckout"); return; }
       if (!res.ok && data.code === "ambiguous_legacy_cart") {
-        items.filter((item) => !item.variant_id).forEach((item) => removeFromCart(item.id));
+        items.filter((item) => !item.variant_id || !item.sellable_unit_id).forEach((item) => removeFromCart(item.id));
       }
       if (!res.ok) throw new Error(data.error || "Order failed");
       if (form.payment_method === "card" && data.redirect?.startsWith("http")) { clearCart(); window.location.href = data.redirect; return; }
@@ -243,7 +245,7 @@ export default function CheckoutPage() {
                 <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-white">
                   <Image src={item.image} alt="" fill sizes="32px" className="object-contain p-0.5" />
                 </div>
-                <span className="min-w-0 flex-1 truncate text-fg-muted">{ar ? item.name_ar : item.name_en} x{item.quantity}</span>
+                <span className="min-w-0 flex-1 truncate text-fg-muted">{ar ? item.name_ar : item.name_en}{item.unit_label_en ? ` · ${ar ? item.unit_label_ar : item.unit_label_en}` : ""} x{item.quantity}</span>
                 <span className="font-medium text-fg">{formatPrice(item.price * item.quantity, lang)}</span>
               </div>
             ))}
@@ -403,7 +405,7 @@ export default function CheckoutPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="line-clamp-1 text-xs font-medium text-fg">{ar ? item.name_ar : item.name_en}</p>
-                  <p className="text-xs text-fg-dim">x{item.quantity}</p>
+                  <p className="text-xs text-fg-dim">{item.unit_label_en ? `${ar ? item.unit_label_ar : item.unit_label_en} · ` : ""}x{item.quantity}</p>
                 </div>
                 <span className="text-xs font-medium text-fg">{formatPrice(item.price * item.quantity, lang)}</span>
               </div>

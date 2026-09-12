@@ -96,16 +96,25 @@ export function BundleOffersSection({ bundles }: { bundles: ResolvedBundle[] }) 
 
     for (const product of bundle.products) {
       const selectedVariant = product.default_variant;
-      if (!selectedVariant) continue;
+      const selectedUnit = selectedVariant?.packaging_units.find((unit) => unit.is_active && unit.is_sellable && unit.is_default_sale_unit)
+        ?? selectedVariant?.packaging_units.find((unit) => unit.is_active && unit.is_sellable);
+      if (!selectedVariant || !selectedUnit) continue;
+      const discountedPrice = Math.round(Number(product.price) * ratio);
       addToCart({
-        id: selectedVariant.id,
+        id: `${selectedVariant.id}:${selectedUnit.id}`,
         variant_id: selectedVariant.id,
+        sellable_unit_id: selectedUnit.id,
         product_id: product.id,
         sku: selectedVariant.sku,
+        unit_code: selectedUnit.code,
+        unit_label_en: selectedUnit.label_en,
+        unit_label_ar: selectedUnit.label_ar,
+        base_quantity_num: selectedUnit.base_quantity.numerator,
+        base_quantity_den: selectedUnit.base_quantity.denominator,
         slug: product.slug,
         name_en: product.name_en,
         name_ar: product.name_ar,
-        price: Math.round(Number(product.price) * ratio),
+        price: discountedPrice,
         image: product.images?.[0] ?? "/keepfit-logo.png",
         stock: selectedVariant.stock,
         variant_label_en: selectedVariant.label_en,

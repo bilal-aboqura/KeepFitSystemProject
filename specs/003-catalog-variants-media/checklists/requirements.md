@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Catalog, Variants, Attributes & Product Media
+# Specification Quality Checklist: Catalog, Variants, Packaging, Attributes & Product Media
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-09-12
@@ -31,4 +31,4 @@
 
 ## Notes
 
-Validation passed: the specification establishes Product/Variant authority, flexible attributes, R2 media governance, catalog integrity, storefront/admin journeys, compatibility boundaries, and explicit exclusions without selecting a technical schema or upload implementation.
+Validation re-run after the packaging amendment: all items pass. The specification now establishes Product/Variant/Sellable Unit authority, deterministic exact conversion and sellability rules, historical Unit snapshots, flexible attributes, R2 media governance, Catalog-to-Pricing boundaries, storefront/admin journeys, and explicit inventory/purchasing exclusions without unresolved clarification markers.

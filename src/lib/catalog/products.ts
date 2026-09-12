@@ -2,11 +2,12 @@ import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 import { catalogProductFieldsSchema, catalogProductInputSchema } from "./validation";
 import { CatalogError, catalogDatabaseError } from "./errors";
+import { normalizeCatalogSlugInput } from "./slug";
 
 const productUpdateSchema = catalogProductFieldsSchema.partial();
 
 export async function createCatalogProduct(input: unknown, actorId: string | null) {
-  const value = catalogProductInputSchema.parse(input);
+  const value = catalogProductInputSchema.parse(normalizeCatalogSlugInput(input));
   const db = getSupabaseServiceClient();
   if (!db) throw new CatalogError("Catalog database is unavailable", 503);
   const [{ data: category }, brandResult] = await Promise.all([
@@ -21,7 +22,7 @@ export async function createCatalogProduct(input: unknown, actorId: string | nul
 }
 
 export async function updateCatalogProduct(id: string, input: unknown, actorId: string | null) {
-  const value = productUpdateSchema.parse(input);
+  const value = productUpdateSchema.parse(normalizeCatalogSlugInput(input, false));
   const db = getSupabaseServiceClient();
   if (!db) throw new CatalogError("Catalog database is unavailable", 503);
   if (value.is_active) {

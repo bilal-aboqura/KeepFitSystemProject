@@ -2,6 +2,7 @@ import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 import { brandInputSchema } from "./validation";
 import { CatalogError, catalogDatabaseError } from "./errors";
+import { normalizeCatalogSlugInput } from "./slug";
 
 export async function listBrands(includeArchived = false) {
   const db = getSupabaseServiceClient();
@@ -14,7 +15,7 @@ export async function listBrands(includeArchived = false) {
 }
 
 export async function createBrand(input: unknown) {
-  const value = brandInputSchema.parse(input);
+  const value = brandInputSchema.parse(normalizeCatalogSlugInput(input));
   const db = getSupabaseServiceClient();
   if (!db) throw new CatalogError("Catalog database is unavailable", 503);
   const { data, error } = await db.from("brands").insert(value).select("*").single();
@@ -23,7 +24,7 @@ export async function createBrand(input: unknown) {
 }
 
 export async function updateBrand(id: string, input: unknown) {
-  const value = brandInputSchema.partial().parse(input);
+  const value = brandInputSchema.partial().parse(normalizeCatalogSlugInput(input, false));
   const db = getSupabaseServiceClient();
   if (!db) throw new CatalogError("Catalog database is unavailable", 503);
   const { data, error } = await db.from("brands").update({ ...value, updated_at: new Date().toISOString() }).eq("id", id).select("*").single();

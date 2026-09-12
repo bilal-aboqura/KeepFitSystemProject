@@ -21,20 +21,28 @@ export function ProductCard({ product }: { product: ProductCardData }) {
   const savings = hasSale ? compareAtPrice - price : 0;
   const discountPercent = hasSale ? Math.round((savings / compareAtPrice) * 100) : 0;
   const quickVariant = product.variant_count === 1 ? product.default_variant : null;
+  const quickUnit = quickVariant?.packaging_units.find((unit) => unit.is_active && unit.is_sellable && unit.is_default_sale_unit)
+    ?? quickVariant?.packaging_units.find((unit) => unit.is_active && unit.is_sellable);
 
   function handleQuickAdd(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (outOfStock || !quickVariant) return;
+    if (outOfStock || !quickVariant || !quickUnit) return;
     addToCart({
-      id: quickVariant.id,
+      id: `${quickVariant.id}:${quickUnit.id}`,
       variant_id: quickVariant.id,
+      sellable_unit_id: quickUnit.id,
       product_id: product.id,
       sku: quickVariant.sku,
+      unit_code: quickUnit.code,
+      unit_label_en: quickUnit.label_en,
+      unit_label_ar: quickUnit.label_ar,
+      base_quantity_num: quickUnit.base_quantity.numerator,
+      base_quantity_den: quickUnit.base_quantity.denominator,
       slug: product.slug,
       name_en: product.name_en,
       name_ar: product.name_ar,
-      price,
+      price: Number(quickUnit.compatibility_price ?? price),
       image,
       stock: quickVariant.stock,
       variant_label_en: quickVariant.label_en,
@@ -72,7 +80,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
         </div>
 
         {/* Quick add */}
-        {!outOfStock && quickVariant && (
+        {!outOfStock && quickVariant && quickUnit && (
           <button
             onClick={handleQuickAdd}
             className="absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-black transition-opacity duration-200 hover:bg-brand-soft focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"

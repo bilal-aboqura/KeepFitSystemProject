@@ -34,10 +34,16 @@ export interface ProductDetail extends ProductCard {
 
 function toProductCard(product: CatalogProduct): ProductCard {
   const defaultVariant = product.variants.find((variant) => variant.is_default) ?? product.variants[0] ?? null;
-  const lowest = [...product.variants].sort((a, b) => a.base_price - b.base_price)[0] ?? defaultVariant;
+  const unitPrice = (variant: CatalogVariant) => {
+    const unit = variant.packaging_units.find((item) => item.is_active && item.is_sellable && item.is_default_sale_unit)
+      ?? variant.packaging_units.find((item) => item.is_active && item.is_sellable);
+    return { price: unit?.compatibility_price ?? variant.base_price, compareAt: unit?.compatibility_compare_at_price ?? variant.compare_at_price };
+  };
+  const lowest = [...product.variants].sort((a, b) => unitPrice(a).price - unitPrice(b).price)[0] ?? defaultVariant;
+  const lowestPrice = lowest ? unitPrice(lowest) : { price: 0, compareAt: null };
   return {
     id: product.id, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar,
-    price: lowest?.base_price ?? 0, compare_at_price: lowest?.compare_at_price ?? null,
+    price: lowestPrice.price, compare_at_price: lowestPrice.compareAt,
     images: product.media.map((media) => media.public_url), is_featured: product.is_featured,
     stock: product.variants.reduce((sum, variant) => sum + variant.stock, 0),
     default_variant: defaultVariant, variant_count: product.variants.length,

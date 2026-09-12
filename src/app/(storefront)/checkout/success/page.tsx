@@ -73,8 +73,8 @@ export default async function CheckoutSuccessPage({ searchParams }: { searchPara
           {order.order_items.map((i) => (
             <div key={i.id} className="flex items-center gap-3">
               {i.image && <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-white"><Image src={i.image} alt={i.name_en} fill sizes="44px" className="object-contain p-1" /></div>}
-              <div className="min-w-0 flex-1"><p className="line-clamp-1 text-sm text-fg">{ar ? (i.name_ar ?? i.name_en) : i.name_en}</p><p className="text-xs text-fg-dim">x{i.quantity}</p></div>
-              <span className="text-sm font-medium text-fg">{formatPrice(Number(i.price) * i.quantity, lang)}</span>
+              <div className="min-w-0 flex-1"><p className="line-clamp-1 text-sm text-fg">{ar ? (i.name_ar ?? i.name_en) : i.name_en}</p><p className="text-xs text-fg-dim">{i.unit_label_en ? `${ar ? i.unit_label_ar : i.unit_label_en} · ` : ""}x{i.quantity}</p></div>
+              <span className="text-sm font-medium text-fg">{formatPrice(Number(i.line_total ?? Number(i.price) * i.quantity), lang)}</span>
             </div>
           ))}
         </div>

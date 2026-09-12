@@ -1,4 +1,4 @@
-# Tasks: Catalog, Variants, Attributes & Product Media
+# Tasks: Catalog, Variants, Packaging, Attributes & Product Media
 
 **Input**: Design documents from `/specs/003-catalog-variants-media/`
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [catalog-api.md](./contracts/catalog-api.md), [quickstart.md](./quickstart.md)
@@ -145,7 +145,38 @@
 - [X] T050 [P] Review all new Catalog/API/media files under `src/lib/catalog/` and `src/app/api/admin/catalog/` for server-only R2 secrets, `requireAdmin`, narrow errors, RLS alignment, and no direct Customer mutation path.
 - [X] T051 [P] Verify `src/lib/i18n/translations.ts`, `src/components/{storefront,admin}/`, and `src/app/{(storefront),admin}/` for Arabic RTL/English LTR, 390 px touch targets, gallery/selector loading-error-empty states, and no horizontal overflow.
 - [X] T052 Confirm Feature 004/Inventory boundaries by reviewing `src/lib/catalog/`, `src/lib/pricing.ts`, `src/lib/cart.ts`, and `src/app/api/orders/route.ts`: expose Variant identity only; add no Customer-Type pricing, price lists, quantity rules, inventory ledger, reservations, or warehouse behavior.
-- [ ] T053 Run the full quickstart verification: `npm run test`, `npm run lint`, `npm run build`, Feature 003 migration validation, non-production R2 smoke, and Feature 001/002 plus guest/authenticated checkout, COD, Kashier, Bosta, Mylerz, notifications, Meta, analytics, sitemap, and JSON-LD regression checks from `specs/003-catalog-variants-media/quickstart.md`.
+- [X] T053 Complete the original pre-packaging automated regression gate with `npm run test`, `npm run lint`, and `npm run build`; keep the environment-gated live R2 check tracked separately by T039 and the unified packaging-era final gate in T068.
+
+---
+
+## Phase 8: User Story 5 - Configure packaging and sellable units (Priority: P1)
+
+**Goal**: Model arbitrary-depth Variant packaging with exact conversions, explicit sellability/defaults, stable Unit identity, secure selection, and immutable cart/order meaning while exposing a clean Feature 004 pricing seam.
+
+**Independent Test**: Configure Box → 5 Strips → 10 Tablets, make Box/Strip sellable and Tablet non-sellable, verify exact base equivalents and invalid-graph rejection, add three Strips to cart/order using Variant + Unit identity, then confirm the historical snapshots survive later Unit archival.
+
+### Tests for User Story 5
+
+- [X] T054 [P] [US5] Add exact-rational packaging validation tests for one-to-one, Box→Ampoule, Box→Strip→Tablet, default/base/sellability rules, normalization, zero/negative quantity, self-reference, cycle, disconnected graph, cross-Variant parent, and ambiguous path in `tests/unit/catalog/packaging-validation.test.ts`.
+- [X] T055 [P] [US5] Add migration/integrity/RLS tests for default one-to-one Unit backfill, permanent optional Unit-code uniqueness, one base/default sellable Unit, graph replacement atomicity, referenced Unit archive/replacement, and customer mutation denial in `tests/integration/catalog-packaging-units.test.ts`.
+- [X] T056 [P] [US5] Add storefront/cart/order tests for single-/multi-Unit selection, inactive/non-sellable refusal, forged conversion/base-equivalent rejection, ambiguous legacy recovery, and immutable packaging snapshots in `tests/integration/catalog-packaging-commerce.test.ts`.
+- [X] T057 [P] [US5] Add Feature 004 Catalog-seam contract tests for exact Box→Ampoule and Box→Strip→Tablet paths, nearest-parent inputs, optional Unit operational codes, and absence of Customer/List/money/rounding decisions in `tests/unit/catalog/packaging-pricing-contract.test.ts`.
+
+### Implementation for User Story 5
+
+- [X] T058 [US5] Add `supabase/migrations/003b_catalog_packaging_units.sql`, update `scripts/migrate-feature-003.mjs` to apply both Feature 003 migrations in order, and converge `supabase/schema.sql` with Variant-owned Packaging/Sellable Unit records, exact rational conversions, permanent optional operational-code reservation, default/base/sellability constraints, one-to-one backfill, archive/reference safety, narrow RLS/grants, transaction RPCs, and additive `order_items` Unit/conversion snapshots without rewriting the published base migration.
+- [X] T059 [US5] Add Packaging/Sellable Unit types, exact-rational helpers, complete-graph validation, and safe errors in `src/lib/catalog/types.ts`, `src/lib/catalog/validation.ts`, and `src/lib/catalog/packaging.ts`.
+- [X] T060 [US5] Implement server-only Packaging Unit projections, atomic hierarchy replacement/archive commands, default Unit resolution, and Feature 004 conversion seam in `src/lib/catalog/packaging.ts` and `src/lib/catalog/queries.ts`.
+- [X] T061 [US5] Add admin-only hierarchy read/replace/archive handlers in `src/app/api/admin/catalog/variants/[variantId]/packaging/route.ts` and `src/app/api/admin/catalog/packaging-units/[unitId]/archive/route.ts` using the existing Catalog authorization/error boundary.
+- [X] T062 [P] [US5] Build a bilingual non-technical packaging hierarchy editor for parent level, exact quantity, labels, sellability, base/default Unit, optional code/barcode, and default explicit/derived behavior in `src/components/admin/catalog-packaging-editor.tsx` and integrate it into `src/components/admin/catalog-product-editor.tsx`.
+- [X] T063 [P] [US5] Extend active storefront projections and Product purchase UI with deterministic default/sellable Unit selection and single-Unit hiding behavior in `src/lib/data/catalog.ts`, `src/components/storefront/sellable-unit-selector.tsx`, and `src/components/storefront/product-purchase-box.tsx`.
+- [X] T064 [US5] Extend cart identity/migration and checkout command construction to require `variant_id` + `sellable_unit_id` + quantity while treating labels, conversions, base equivalents, and prices as disposable/non-authoritative in `src/lib/cart.ts` and `src/app/(storefront)/checkout/page.tsx`.
+- [X] T065 [US5] Extend authoritative order resolution and persistence with active Unit ownership/sellability validation plus immutable Variant/SKU/Unit/code/label/quantity/conversion/base-equivalent/unit-price/line-total snapshots, accepting price only from the server Pricing resolver or the transitional default-Unit compatibility path and never deriving money inside Catalog, in `src/app/api/orders/route.ts`, `src/lib/data/orders.ts`, `src/lib/customers/queries.ts`, and `supabase/migrations/003b_catalog_packaging_units.sql`.
+- [X] T066 [P] [US5] Add Arabic/English packaging, Unit, conversion, sellability, default/base, derived/explicit, and invalid-hierarchy labels/errors in `src/lib/i18n/translations.ts`.
+- [X] T067 [P] [US5] Extend the non-production catalog demo/reset workflow with sellable parent/child, three-level/non-sellable, parent-only bottle, and nested wholesale examples in `scripts/seed-catalog-demo.mjs`.
+- [X] T068 [US5] Run the expanded packaging quickstart and regression suite, including Feature 004 seam, Feature 001/002, checkout/integrations, `npm run test`, `npm run test:customer-db`, `npm run lint`, and `npm run build`, and record any environment-gated R2/manual checks in `specs/003-catalog-variants-media/quickstart.md`.
+
+**Checkpoint**: Catalog owns complete deterministic packaging truth, customers can select only valid Sellable Units, new orders preserve exact historical meaning, and Feature 004 can derive context-aware prices without redesigning Catalog.
 
 ---
 
@@ -159,14 +190,16 @@
 - **US2 (Phase 4)**: Depends on Phase 2; it consumes the shared Product/Variant contract and may begin after T016 stabilizes the creation projection.
 - **US3 (Phase 5)**: Depends on Phase 2; Attribute editor integration follows US1, and media gallery integration follows Variant queries from US2.
 - **US4 (Phase 6)**: Depends on Phase 2; operational list UI may proceed in parallel with US3 after shared projections are stable.
-- **Phase 7**: Depends on all desired user-story phases.
+- **Phase 7**: Validates the originally delivered Feature 003 scope; its full quickstart completion now also depends on the packaging addition.
+- **US5 (Phase 8)**: Late-added P1 correction to the Catalog foundation. T054–T057 define failing contracts first; T058–T061 establish the authoritative graph/API; T062–T067 consume it; T068 is the final convergence gate.
 
 ### User Story Dependencies
 
 ```text
 Foundation
  ├── US1 Create sellable Variant catalog (MVP)
- │    └── US2 Browse/select Variant
+ │    ├── US2 Browse/select Variant
+ │    └── US5 Configure/select Sellable Units ──→ Feature 004 Pricing
  ├── US3 Flexible attributes and R2 media
  └── US4 Search, archive, and safe operations
 ```
@@ -176,6 +209,7 @@ Foundation
 - T003/T004, T010/T011, and `[P]` tests work in independent files.
 - After the Catalog contract stabilizes, US1 editor/localization, US2 selector, and US3 media-adapter work can be split across contributors.
 - US4 list/search UI can proceed alongside US3 gallery/attribute UI once the shared query projections are available.
+- T054–T057 packaging tests/contracts can run in parallel; T062/T063/T066/T067 can run in parallel after the authoritative Packaging contract stabilizes.
 - `[P]` means files can be worked independently; it does not bypass listed database/domain dependencies.
 
 ## Parallel Example: User Story 3
@@ -205,7 +239,8 @@ After T032/T033 define the domain and storage contracts, T034 and the two UI tas
 3. US2 → customer Variant selection and cart/order identity.
 4. US3 → flexible attributes plus R2 media lifecycle.
 5. US4 → operational search/archival safety.
-6. Phase 7 → migration, security, SEO, R2, and full regression hardening.
+6. US5 correction → packaging hierarchy, Sellable Unit commerce identity, and Feature 004 conversion seam.
+7. Expanded final verification → migration, security, SEO, R2, packaging, and full regression hardening.
 
 ## Notes
 

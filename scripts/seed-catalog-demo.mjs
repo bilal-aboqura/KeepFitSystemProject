@@ -1,4 +1,5 @@
 import pg from "pg";
+import { randomUUID } from "node:crypto";
 
 const url = process.env.DIRECT_URL;
 if (!url) throw new Error("DIRECT_URL is required.");
@@ -44,9 +45,28 @@ try {
       { slug: "feature-003-demo-tablets", name_en: "Demo Tablet Strips", name_ar: "شرائط أقراص تجريبية", sku: "TABLETS", price: 240 },
       { slug: "feature-003-demo-liquid", name_en: "Demo Liquid Supplement", name_ar: "مكمل سائل تجريبي", sku: "LIQUID", price: 310 },
     ];
+    const packagingShapes = {
+      "feature-003-demo-protein": [["Carton", "كرتونة", null, 1, true, false], ["Box", "علبة", 0, 12, true, false], ["Sachet", "كيس", 1, 30, false, true]],
+      "feature-003-demo-creatine": [["Box", "علبة", null, 1, true, false], ["Ampoule", "أمبول", 0, 4, true, true]],
+      "feature-003-demo-capsules": [["Bottle", "زجاجة", null, 1, true, false], ["Capsule", "كبسولة", 0, 60, false, true]],
+      "feature-003-demo-tablets": [["Box", "علبة", null, 1, true, false], ["Strip", "شريط", 0, 5, true, false], ["Tablet", "قرص", 1, 10, true, true]],
+      "feature-003-demo-liquid": [["Bottle", "زجاجة", null, 1, true, false], ["ml", "مل", 0, 500, false, true]],
+    };
     for (const product of products) {
       const variants = product.variants ?? [{ sku: `F003-DEMO-${product.sku}`, base_price: product.price, stock: 20, is_active: true, is_default: true, label_en: "Default", label_ar: "افتراضي", attributes: [] }];
-      await db.query("select public.catalog_create_product($1::jsonb,null)", [{ slug: product.slug, category_id: category.id, brand_id: brand.id, name_en: product.name_en, name_ar: product.name_ar, short_desc_en: "Feature 003 non-production demo", short_desc_ar: "بيانات تجريبية غير إنتاجية لميزة 003", long_desc_en: "", long_desc_ar: "", is_active: true, is_featured: false, variants, specifications: [] }]);
+      const productId = (await db.query("select public.catalog_create_product($1::jsonb,null) result", [{ slug: product.slug, category_id: category.id, brand_id: brand.id, name_en: product.name_en, name_ar: product.name_ar, short_desc_en: "Feature 003 non-production demo", short_desc_ar: "بيانات تجريبية غير إنتاجية لميزة 003", long_desc_en: "", long_desc_ar: "", is_active: true, is_featured: false, variants, specifications: [] }])).rows[0].result.product_id;
+      const variantRows = (await db.query("select id,sku from public.product_variants where product_id=$1 order by created_at", [productId])).rows;
+      const shape = packagingShapes[product.slug];
+      for (const variant of variantRows) {
+        const ids = shape.map(() => randomUUID());
+        const units = shape.map(([label_en, label_ar, parentIndex, quantity, sellable, base], index) => ({
+          id: ids[index], parent_unit_id: parentIndex === null ? null : ids[parentIndex], code: `${variant.sku}-${String(label_en).toUpperCase()}`,
+          barcode: null, label_en, label_ar, quantity_per_parent: { numerator: quantity, denominator: 1 },
+          is_base_unit: base, is_sellable: sellable, is_default_sale_unit: index === 0,
+          default_price_mode: index === 0 ? "explicit" : "derived", is_active: true,
+        }));
+        await db.query("select public.catalog_replace_packaging_units($1,$2::jsonb,null)", [variant.id, JSON.stringify(units)]);
+      }
     }
   }
   await db.query("commit");

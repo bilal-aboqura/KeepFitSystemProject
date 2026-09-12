@@ -2,6 +2,8 @@ import "server-only";
 import { getSupabaseServerClient, getSupabaseServiceClient } from "@/lib/supabase/server";
 import type { CatalogMedia, CatalogProduct, CatalogVariant } from "./types";
 import { catalogDatabaseError } from "./errors";
+import { deriveCompatibilityUnitPrice } from "@/lib/pricing";
+import { mapPackagingUnit } from "./packaging-commands";
 
 const productProjection = `
   id,slug,category_id,brand_id,name_en,name_ar,short_desc_en,short_desc_ar,long_desc_en,long_desc_ar,
@@ -9,6 +11,7 @@ const productProjection = `
   category:categories(id,slug,name_en,name_ar,image,parent_id,is_active,sort_order),
   brand:brands(id,slug,name_en,name_ar,description_en,description_ar,logo_media_id,is_active),
   variants:product_variants(id,product_id,sku,barcode,label_en,label_ar,base_price,compare_at_price,stock,is_default,is_active,archived_at,combination_fingerprint,
+    packaging_units:variant_packaging_units(id,variant_id,parent_unit_id,code,barcode,label_en,label_ar,quantity_per_parent_num,quantity_per_parent_den,base_quantity_num,base_quantity_den,is_base_unit,is_sellable,is_default_sale_unit,default_price_mode,is_active,archived_at),
     attributes:variant_attribute_values(attribute_definition_id,attribute_value_id,text_value,number_value,boolean_value,
       definition:attribute_definitions(id,code,label_en,label_ar,value_type,unit,is_variant_defining,is_filterable,is_visible,is_active,sort_order),
       value:attribute_values(id,attribute_definition_id,code,label_en,label_ar,sort_order,is_active)),
@@ -53,7 +56,15 @@ function normalizeProduct(row: Record<string, unknown>): CatalogProduct {
     const media = ((variant.variant_media as Record<string, unknown>[] | null) ?? [])
       .map((relation) => mapMedia(relation.media as Record<string, unknown>, relation)).filter((item): item is CatalogMedia => Boolean(item))
       .sort((a, b) => a.sort_order - b.sort_order);
-    return { ...variant, base_price: Number(variant.base_price), compare_at_price: variant.compare_at_price === null ? null : Number(variant.compare_at_price), stock: Number(variant.stock), media } as unknown as CatalogVariant;
+    const packagingUnits = ((variant.packaging_units as Record<string, unknown>[] | null) ?? []).map(mapPackagingUnit).filter((unit) => unit.is_active && !unit.archived_at);
+    const defaultUnit = packagingUnits.find((unit) => unit.is_default_sale_unit) ?? packagingUnits.find((unit) => unit.is_sellable);
+    if (defaultUnit) {
+      for (const unit of packagingUnits) {
+        unit.compatibility_price = deriveCompatibilityUnitPrice(Number(variant.base_price), unit, defaultUnit);
+        unit.compatibility_compare_at_price = variant.compare_at_price === null ? null : deriveCompatibilityUnitPrice(Number(variant.compare_at_price), unit, defaultUnit);
+      }
+    }
+    return { ...variant, base_price: Number(variant.base_price), compare_at_price: variant.compare_at_price === null ? null : Number(variant.compare_at_price), stock: Number(variant.stock), media, packaging_units: packagingUnits } as unknown as CatalogVariant;
   });
   return { ...row, media: productMedia, variants, specifications: (row.specifications ?? []) as CatalogProduct["specifications"] } as unknown as CatalogProduct;
 }

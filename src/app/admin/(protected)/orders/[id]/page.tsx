@@ -38,6 +38,8 @@ export default async function OrderDetailPage({
     product_id: string | null;
     name_en: string;
     name_ar: string | null;
+    unit_label_en: string | null;
+    unit_label_ar: string | null;
     price: number;
     quantity: number;
     image: string | null;
@@ -84,6 +86,8 @@ export default async function OrderDetailPage({
             orderId={order.id}
             initialItems={items.map((item) => ({
               ...item,
+              name_en: item.unit_label_en ? `${item.name_en} · ${item.unit_label_en}` : item.name_en,
+              name_ar: item.unit_label_ar ? `${item.name_ar ?? item.name_en} · ${item.unit_label_ar}` : item.name_ar,
               price: Number(item.price),
             }))}
             products={products.map((product) => ({

@@ -5,8 +5,14 @@ import { useSyncExternalStore } from "react";
 export interface CartItem {
   id: string;
   variant_id?: string;
+  sellable_unit_id?: string;
   product_id?: string;
   sku?: string;
+  unit_code?: string | null;
+  unit_label_en?: string;
+  unit_label_ar?: string;
+  base_quantity_num?: number;
+  base_quantity_den?: number;
   slug: string;
   name_en: string;
   name_ar: string;
@@ -109,7 +115,7 @@ export function migrateUnambiguousLegacyCartItem(
 ): boolean {
   const items = readAll();
   const legacyIndex = items.findIndex((item) => !item.variant_id && item.id === productId);
-  if (legacyIndex < 0 || !variant.variant_id) return false;
+  if (legacyIndex < 0 || !variant.variant_id || !variant.sellable_unit_id) return false;
   const legacy = items[legacyIndex];
   items[legacyIndex] = { ...variant, quantity: Math.min(legacy.quantity, variant.stock ?? 99) };
   commit(items);

@@ -1,9 +1,9 @@
-# Feature Specification: Catalog, Variants, Attributes & Product Media
+# Feature Specification: Catalog, Variants, Packaging, Attributes & Product Media
 
 **Feature Branch**: `003-catalog-variants-media`  
 **Created**: 2026-09-12  
 **Status**: Draft  
-**Input**: User description: "Build catalog variants attributes and product media"
+**Input**: User description: "Build catalog variants, generic packaging and sellable units, attributes, and product media"
 
 ## Clarifications
 
@@ -11,6 +11,7 @@
 
 - Q: May a SKU be reused after its Variant is archived? → A: A SKU is globally unique forever; archived Variant SKUs cannot be reused.
 - Q: What happens when an administrator removes catalog media? → A: Archive the media record first; delete the R2 object only when it is unreferenced.
+- Q: Which feature owns packaging and derived unit pricing? → A: Feature 003 owns each Variant's generic packaging hierarchy, sellable-unit identity, default/base unit, deterministic conversion facts, and cart/order unit snapshots. Feature 004 owns context-aware explicit/derived price resolution, monetary rounding, Price Lists, Customer-Type prices, and Customer overrides by consuming that Catalog contract.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -80,6 +81,25 @@ An authorized administrator can search/filter Products and Variants by useful ca
 3. **Given** a Product-level name, description, Category, Brand, or image change, **When** the administrator saves it, **Then** existing Variant identities remain unchanged.
 4. **Given** an operationally referenced Variant whose defining attributes need a material change, **When** the administrator attempts the change, **Then** the workflow avoids silently reinterpreting historical identity and supports safe archival/replacement instead.
 
+---
+
+### User Story 5 - Configure packaging and sellable units (Priority: P1)
+
+An authorized administrator can describe a Variant's real packaging hierarchy without creating duplicate Products or category-specific fields. Each level has a stable identity, bilingual label, exact conversion to its contained level, explicit sellability, and one default sale unit. Customers can distinguish and select the permitted unit being purchased, while later pricing and inventory capabilities consume the same deterministic conversion facts.
+
+**Why this priority**: Variant identity alone cannot distinguish buying three Boxes from three Ampoules. Packaging and sellable-unit identity are foundational commercial facts required before contextual pricing, checkout, inventory, or purchasing can be correct.
+
+**Independent Test**: Configure a Box containing five Strips with ten Tablets per Strip, make Box and Strip sellable and Tablet non-sellable, then verify the system resolves Box as 50 base units and Strip as 10, permits only the configured sale units, and records the selected Variant and Sellable Unit distinctly.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Variant packaged as Box → 5 Strips → 10 Tablets, **When** an administrator saves it, **Then** all levels retain stable identities and resolve deterministically to one canonical Tablet base unit: Box = 50, Strip = 10, Tablet = 1.
+2. **Given** Box and Strip are sellable while Tablet is not, **When** a customer selects a purchase unit, **Then** only Box and Strip are offered and altered client input cannot make Tablet purchasable.
+3. **Given** an administrator attempts a zero/negative conversion, self-reference, cycle, cross-Variant parent, conflicting parent, or ambiguous conversion path, **When** the hierarchy is validated, **Then** the entire invalid change is refused without changing the prior valid hierarchy.
+4. **Given** three Ampoules and three Boxes belong to the same Variant, **When** either is added to cart or ordered, **Then** the records share Variant identity but retain different Sellable Unit identities and base-unit equivalents.
+5. **Given** a smaller sellable unit has no explicit price for a pricing context, **When** Feature 004 resolves it, **Then** Feature 003 supplies the exact nearest-parent conversion path without selecting a Customer, Price List, price, or rounding result itself.
+6. **Given** an order was placed under an older packaging configuration, **When** an administrator later archives or replaces a packaging level, **Then** the historical order still states the sold unit label, conversion/base equivalent, quantity, and commercial identity as originally accepted.
+
 ### Edge Cases
 
 - An active sellable Product cannot be published with no active Variant; a single default Variant is valid.
@@ -92,6 +112,11 @@ An authorized administrator can search/filter Products and Variants by useful ca
 - Removing media archives its catalog record first and cannot leave a primary-image conflict, delete a still-referenced object, or expose broken Product/Variant gallery references; R2 deletion occurs only after no catalog reference remains.
 - A customer cannot create, alter, archive, or upload catalog/media records; R2 administrative credentials never reach the browser.
 - Arabic RTL and English LTR browsing, filtering, gallery, and option selection work at approximately 390 px with no horizontal overflow.
+- A Variant packaging hierarchy has exactly one canonical base unit and one deterministic path from every active level to that base; disconnected, circular, cross-Variant, zero, negative, or ambiguous conversions are rejected atomically.
+- Every active Variant has at least one active sellable unit and exactly one active default sale unit; a contained level is never assumed sellable from its name or position.
+- A non-sellable, inactive, archived, or foreign Sellable Unit cannot become purchasable through altered browser input.
+- Packaging edits that would reinterpret a referenced historical sale require archive/replacement rather than in-place semantic mutation.
+- Exact conversions may span multiple levels and must not accumulate browser floating-point error.
 
 ## Requirements *(mandatory)*
 
@@ -138,24 +163,45 @@ An authorized administrator can search/filter Products and Variants by useful ca
 - **FR-039**: Sensitive catalog changes, including activation/deactivation, Variant creation/archive, SKU changes, and media deletion, MUST be compatible with the existing audit principles.
 - **FR-040**: Google authentication, Customer identity/account/approval workflow, addresses, guest and authenticated checkout, order history, admin authorization, payments, shipping, notifications, analytics, and existing order data MUST remain functional.
 - **FR-041**: Customer Type MUST NOT influence catalog or current base price behavior in this feature; Feature 004 must be able to consume Variant identity without redesigning the catalog.
+- **FR-042**: Every Variant MUST support a generic, arbitrary-depth packaging hierarchy without Product-category-specific schema changes or duplicate Products for Box, Strip, Ampoule, Tablet, Capsule, Sachet, Serving, Pack, Case, Carton, or future unit names.
+- **FR-043**: Every packaging level MUST have a stable identity belonging to exactly one Variant, bilingual display labels, active/archive state, and an optional distinct operational code or barcode; Variant SKU remains the canonical Variant identity and MUST NOT be replaced by packaging labels.
+- **FR-044**: Every non-root packaging level MUST identify at most one immediate parent and MUST define an exact positive quantity per parent. The authoritative layer MUST reject zero, negative, missing, self-referencing, cross-Variant, circular, disconnected, conflicting-parent, and ambiguous conversion structures atomically.
+- **FR-045**: Every Variant packaging hierarchy MUST designate exactly one canonical base unit whose base equivalent is one, and every active packaging level MUST resolve through one deterministic path to an exact positive base-unit equivalent.
+- **FR-046**: Every packaging level MUST explicitly declare whether it is independently sellable; containment, naming, hierarchy position, or base-unit status MUST NOT imply sellability.
+- **FR-047**: Every active Variant MUST have at least one active sellable unit and exactly one active default sale unit. A simple legacy or single-unit Variant MUST receive a default unit with a one-to-one base conversion.
+- **FR-048**: The storefront MUST expose only active, independently sellable units for the selected Variant and MUST present bilingual human-readable packaging labels without using those labels as business identity.
+- **FR-049**: New cart items and order commands MUST identify both Variant and selected Sellable Unit plus quantity; Box quantity three and Ampoule quantity three MUST remain distinct commercial requests even when they share one Variant.
+- **FR-050**: The server MUST resolve Unit ownership, activity, sellability, default status, conversion path, and equivalent base quantity from authoritative Catalog data. Browser-submitted conversion quantities, units-per-package, derived prices, or base equivalents MUST be ignored or rejected as authority.
+- **FR-051**: New order lines MUST snapshot Variant identity/SKU, Sellable Unit identity and optional operational code, bilingual Product/Variant/packaging labels, ordered quantity, exact units per sold package, equivalent base quantity, accepted unit price, and line total so later Catalog changes cannot alter historical meaning.
+- **FR-052**: Packaging levels referenced by orders or other operational records MUST be archived/replaced rather than destructively deleted or semantically reparented in place.
+- **FR-053**: Authorized administrators MUST be able to configure packaging levels, parent/child relationships, exact quantity per parent, bilingual labels, sellability, default sale unit, optional operational identifiers, and default explicit-versus-derived pricing behavior without technical database knowledge.
+- **FR-054**: Feature 003 MUST expose active Variant/Sellable Unit ownership, default-unit, sellability, exact conversion path, and base-equivalent facts through an intentional Catalog contract for Feature 004 and later inventory/purchasing modules.
+- **FR-055**: The Catalog pricing contract MUST allow explicit unit-level prices to take precedence and allow a smaller unit marked for derivation to use its nearest authoritative priced parent within the same pricing context. Feature 003 MUST NOT choose Customer context, Price List precedence, monetary amount, or rounding result.
+- **FR-056**: The conversion model MUST support multi-level examples including Box → Ampoule, Box → Strip → Tablet, Carton → Box → Sachet, Case → Pack → Unit, Bottle → Capsule/Serving, and equivalent future hierarchies without category-specific code.
+- **FR-057**: Exact base equivalents MUST be usable by later inventory and purchasing modules, but this feature MUST NOT create an inventory ledger, reservation, warehouse balance, stock movement, purchase-order, or automatic pack-consolidation workflow.
+- **FR-058**: Development/staging demo data and acceptance coverage MUST include at least a sellable parent-and-child case, a three-level hierarchy with a non-sellable level, a parent-only sellable bottle/container, and a nested wholesale package.
+- **FR-059**: Existing Variants, carts, and new-order compatibility MUST migrate safely by assigning an unambiguous one-to-one default Sellable Unit where no packaging hierarchy exists; historical order rows MUST remain readable without retroactive reinterpretation.
+- **FR-060**: Feature 004 MUST apply one authoritative safe-money and rounding policy after resolving the Customer-specific pricing context. Feature 003 supplies exact conversion facts and MUST NOT perform browser-side or context-independent monetary rounding.
 
 ### Key Entities *(include if feature involves data)*
 
 - **Product**: The bilingual catalog concept with Category, optional Brand, product-level specifications, visibility, SEO-compatible identity, and media gallery.
-- **Variant**: The stable purchasable unit belonging to one Product, with SKU, optional barcode, active state, current base-price/availability compatibility, defining attribute values, and optional media.
+- **Variant**: The stable canonical product identity belonging to one Product, with SKU, optional barcode, active state, current base-price/availability compatibility, defining attribute values, optional media, and one packaging hierarchy containing its actual orderable units.
+- **Packaging / Sellable Unit**: A stable Variant-owned packaging level with bilingual labels, optional operational identifier, exact parent conversion, exact base-unit equivalent, explicit sellability/default status, pricing-behavior hint, and lifecycle state.
+- **Packaging Conversion**: The exact, deterministic parent-to-contained-unit relationship from which every packaging level resolves to the Variant's single canonical base unit.
 - **Category**: Reusable Product classification with bilingual display data, URL-friendly identity, visibility, ordering, and optional media.
 - **Brand**: Reusable manufacturer/brand entity assigned to Products.
 - **Attribute Definition**: Reusable typed/specification definition identified by stable code and configured for variant definition, filtering, and display when applicable.
 - **Attribute Value**: A controlled reusable option or validated free-form/numeric value linked to an Attribute Definition and Product/Variant context.
 - **Product Media**: Ordered Product/Variant gallery record with stable object key, type, bilingual alt text, primary status, file metadata, and lifecycle state.
-- **Cart Item / Order Item Variant Reference**: New commerce reference to the chosen stable Variant while retaining readable historical snapshots.
+- **Cart Item / Order Item Commercial Reference**: New commerce reference to both the chosen stable Variant and Sellable Unit, with quantity and immutable packaging/base-equivalent snapshots while retaining readable historical rows.
 
 ### Operational Controls *(include when applicable)*
 
 - **Authorization**: Existing authorized admin boundaries protect all catalog, attribute, and media mutations. Customers have read-only storefront access and cannot obtain R2 management authority.
 - **Auditability**: Important catalog activation, SKU, Variant lifecycle, and media-removal actions retain actor, target, action, prior/new state where available, and time through existing audit-compatible mechanisms.
-- **Commercial authority**: Variant is the sellable authority. Current base price remains type-neutral; no Customer Type pricing, quantity pricing, or pricing engine is added.
-- **Transaction integrity**: Authoritative catalog actions protect publishability, active SKU uniqueness, Variant-combination uniqueness, primary-media integrity, and archive safety against concurrent/admin-client conflicts.
+- **Commercial authority**: Variant remains the canonical product identity; Sellable Unit is the selected packaging identity. Catalog owns sellability/conversion facts, while Feature 004 alone owns Customer context, price precedence, derivation amount, safe-money rounding, and line totals.
+- **Transaction integrity**: Authoritative catalog actions protect publishability, active SKU uniqueness, Variant-combination uniqueness, packaging graph validity, one base/default unit, sellability, primary-media integrity, and archive safety against concurrent/admin-client conflicts.
 - **Events & integrations**: Media records and catalog lifecycle changes are structured for future operational/audit integration. R2 failures never mark catalog media successful before an object/reference is safely established.
 - **Existing functionality impact**: Feature 001/002 identity, approval, checkout, integrations, and historical order data are retained; new catalog carts/orders use Variant identity without altering Customer-Type pricing.
 
@@ -171,6 +217,12 @@ An authorized administrator can search/filter Products and Variants by useful ca
 - **SC-006**: 100% of tested unauthorized catalog/media mutation and upload attempts are refused, and no R2 administrative credential appears in browser-delivered code or customer responses.
 - **SC-007**: Tested Product galleries show configured ordering and exactly one effective primary image; Variant-specific media falls back to Product media when absent.
 - **SC-008**: All named Feature 001/002 and current commerce regression journeys complete successfully, and equivalent Retail, Wholesale, and Gym customers continue to see the same base price in Feature 003 acceptance tests.
+- **SC-009**: 100% of accepted two-level and three-level packaging fixtures resolve every level to the expected exact base-unit equivalent, including Box = 50, Strip = 10, Tablet = 1 for a 5 × 10 hierarchy.
+- **SC-010**: 100% of tested zero, negative, self-referencing, circular, cross-Variant, conflicting-parent, disconnected, and ambiguous packaging changes are refused without partial Catalog mutation.
+- **SC-011**: In acceptance testing, only explicitly active sellable units can be selected or ordered, and 100% of active Variants have exactly one active default sale unit and one canonical base unit.
+- **SC-012**: 100% of new packaging-aware cart and order test records distinguish Variant from Sellable Unit and preserve quantity, labels, exact conversion/base equivalent, price, and line-total snapshots after later configuration changes.
+- **SC-013**: Feature 003's Catalog contract returns every exact ownership, sellability, default/base, and conversion-path fact required for explicit and nearest-parent-derived pricing across all required two-level and three-level fixtures, without choosing Customer context, monetary amount, or rounding.
+- **SC-014**: An authorized administrator can configure and validate a three-level packaging hierarchy, sellability, and default unit in under 5 minutes without entering database identifiers manually.
 
 ## Assumptions
 
@@ -180,4 +232,7 @@ An authorized administrator can search/filter Products and Variants by useful ca
 - Business-configured reasonable media MIME, file-size, and dimension limits are sufficient for this feature; image optimization implementation is a planning decision.
 - R2 uses separate non-production and production configuration with a configurable serving base domain. Secrets remain server-side and outside source control.
 - Current base catalog price and minimal stock fields are transitional compatibility state only; Feature 004 owns future pricing and later features own inventory.
+- Variant SKU remains the canonical Variant code. A packaging level may have an optional separate operational code/barcode when physical operations require it; this never creates another Product or Variant.
+- Exact conversion quantities are stored and exchanged without floating-point approximation. Feature 004 rounds monetary results only after completing exact conversion for the requested Sellable Unit.
+- Existing Variants without packaging data receive one active, sellable, default/base unit with a one-to-one conversion during the additive migration.
 - No barcode scanning, external search service, full faceted search engine, inventory ledger, purchasing, or automation engine is introduced.
