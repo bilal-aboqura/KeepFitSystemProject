@@ -24,6 +24,7 @@ import { calcItemsSubtotal, calcOnlinePaymentDiscount } from "@/lib/pricing";
 import { formatPrice } from "@/lib/utils";
 import type { GovernorateOption } from "@/lib/data/locations";
 import { useShippingQuote } from "@/components/storefront/use-shipping-quote";
+import type { CustomerAddress } from "@/lib/customers/types";
 
 
 interface BumpProduct {
@@ -50,6 +51,8 @@ export default function CheckoutPage() {
   const ar = lang === "ar";
 
   const [governorates, setGovernorates] = useState<GovernorateOption[]>([]);
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState("");
   const [checkoutDataError, setCheckoutDataError] = useState(false);
   const [checkoutDataAttempt, setCheckoutDataAttempt] = useState(0);
   const [form, setForm] = useState({
@@ -83,13 +86,34 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/checkout-data", { signal: AbortSignal.timeout(15000), cache: "no-store" })
-      .then((r) => { if (!r.ok) throw new Error("Checkout unavailable"); return r.json(); })
-      .then((d) => {
+    Promise.all([
+      fetch("/api/checkout-data", { signal: AbortSignal.timeout(15000), cache: "no-store" })
+        .then((r) => { if (!r.ok) throw new Error("Checkout unavailable"); return r.json(); }),
+      fetch("/api/customer/addresses", { signal: AbortSignal.timeout(15000), cache: "no-store" })
+        .then((r) => r.ok ? r.json() : { addresses: [] })
+        .catch(() => ({ addresses: [] })),
+    ])
+      .then(([d, addressData]) => {
         if (!active) return;
         const threshold = Number(d.freeShippingThreshold);
         if (!d.governorates?.length || !Number.isFinite(threshold) || threshold <= 0) throw new Error("Invalid checkout options");
         setGovernorates(d.governorates ?? []);
+        const addresses = Array.isArray(addressData.addresses) ? addressData.addresses as CustomerAddress[] : [];
+        setSavedAddresses(addresses);
+        const preferredAddress = addresses.find((address) => address.is_default) ?? addresses[0];
+        if (preferredAddress) {
+          setSelectedAddressId(preferredAddress.id);
+          setForm((current) => current.customer_name || current.customer_phone || current.governorate || current.city || current.address
+            ? current
+            : {
+                ...current,
+                customer_name: preferredAddress.full_name,
+                customer_phone: normalizePhone(preferredAddress.phone),
+                governorate: preferredAddress.governorate,
+                city: preferredAddress.city,
+                address: preferredAddress.address,
+              });
+        }
         if (d.bumpProduct) setBumpProduct(d.bumpProduct);
         setFreeShippingThreshold(threshold);
         setCheckoutDataError(false);
@@ -114,8 +138,23 @@ export default function CheckoutPage() {
     ? (ar ? bumpProduct.desc_ar : bumpProduct.desc_en) || t.checkout.bumpDesc
     : t.checkout.bumpDesc;
   const duplicatePhones = Boolean(form.customer_phone && form.alt_phone && form.customer_phone === form.alt_phone);
+  const selectedAddress = savedAddresses.find((address) => address.id === selectedAddressId);
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) { setForm((f) => ({ ...f, [key]: value })); }
+
+  function selectSavedAddress(id: string) {
+    setSelectedAddressId(id);
+    const address = savedAddresses.find((candidate) => candidate.id === id);
+    if (!address) return;
+    setForm((current) => ({
+      ...current,
+      customer_name: address.full_name,
+      customer_phone: normalizePhone(address.phone),
+      governorate: address.governorate,
+      city: address.city,
+      address: address.address,
+    }));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -219,30 +258,71 @@ export default function CheckoutPage() {
                 <p>{ar ? "تعذر تحميل مناطق التوصيل. اضغط لإعادة المحاولة." : "Could not load delivery locations. Please try again."}</p>
                 <button type="button" onClick={() => { setCheckoutDataError(false); setCheckoutDataAttempt((value) => value + 1); }} className="btn btn-secondary mt-2">{ar ? "إعادة المحاولة" : "Try again"}</button>
               </div>}
-              <Field label={t.checkout.fullName}>
-                <input required autoComplete="name" value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} className="input" placeholder={ar ? "محمد أحمد" : "Mohamed Ahmed"} />
-              </Field>
-              <Field label={t.checkout.phone}>
-                <input required type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={20} dir="ltr" value={form.customer_phone} onChange={(e) => set("customer_phone", normalizePhone(e.target.value))} className="input" placeholder="01XXXXXXXXX" aria-invalid={duplicatePhones} aria-describedby={duplicatePhones ? "phone-duplicate-error" : undefined} />
-              </Field>
+              {savedAddresses.length > 0 && (
+                <Field label={ar ? "استخدم عنوانًا محفوظًا" : "Use a saved address"} className="sm:col-span-2">
+                  <select value={selectedAddressId} onChange={(event) => selectSavedAddress(event.target.value)} className="input">
+                    <option value="">{ar ? "تعديل بيانات التوصيل أو إدخال عنوان آخر" : "Edit delivery details or enter another address"}</option>
+                    {savedAddresses.map((address) => (
+                      <option key={address.id} value={address.id}>
+                        {address.is_default ? (ar ? "الافتراضي — " : "Default — ") : ""}
+                        {address.full_name} — {address.city} — {address.address}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
+              {selectedAddress ? (
+                <div className="rounded-xl border border-border bg-surface p-4 sm:col-span-2">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-fg">{selectedAddress.full_name}</p>
+                      <p className="mt-1 text-sm text-fg-muted" dir="ltr">{selectedAddress.phone}</p>
+                      <p className="mt-2 text-sm leading-6 text-fg-muted">
+                        {selectedAddress.address}, {selectedAddress.city}, {selectedAddress.governorate}
+                      </p>
+                    </div>
+                    {selectedAddress.is_default && (
+                      <span className="rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand">
+                        {ar ? "العنوان الافتراضي" : "Default address"}
+                      </span>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => setSelectedAddressId("")} className="mt-3 text-sm font-semibold text-brand underline">
+                    {ar ? "تعديل بيانات هذا الطلب" : "Edit details for this order"}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Field label={t.checkout.fullName}>
+                    <input required autoComplete="name" value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} className="input" placeholder={ar ? "محمد أحمد" : "Mohamed Ahmed"} />
+                  </Field>
+                  <Field label={t.checkout.phone}>
+                    <input required type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={20} dir="ltr" value={form.customer_phone} onChange={(e) => set("customer_phone", normalizePhone(e.target.value))} className="input" placeholder="01XXXXXXXXX" aria-invalid={duplicatePhones} aria-describedby={duplicatePhones ? "phone-duplicate-error" : undefined} />
+                  </Field>
+                </>
+              )}
 
-              <Field label={t.checkout.altPhone}>
+              <Field label={ar ? "رقم هاتف بديل (مطلوب)" : "Alternative phone (required)"}>
                 <input required type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={20} dir="ltr" value={form.alt_phone} onChange={(e) => set("alt_phone", normalizePhone(e.target.value))} className="input" placeholder="01XXXXXXXXX" aria-invalid={duplicatePhones} aria-describedby={duplicatePhones ? "phone-duplicate-error" : undefined} />
               </Field>
               {duplicatePhones && <p id="phone-duplicate-error" className="-mt-2 text-xs text-red-600 sm:col-span-2" role="alert">{ar ? "رقم الهاتف البديل يجب أن يختلف عن رقم الهاتف الأساسي." : "The alternative phone number must be different from the main phone number."}</p>}
 
-              <Field label={t.checkout.governorate}>
-                <select required value={form.governorate} onChange={(e) => { set("governorate", e.target.value); set("city", ""); }} className="input">
-                  <option value="">{ar ? "اختر المحافظة" : "Select governorate"}</option>
-                  {governorates.map((g) => <option key={g.ar} value={g.ar}>{ar ? g.ar : `${g.en} (${g.ar})`}</option>)}
-                </select>
-              </Field>
-              <Field label={t.checkout.city}>
-                <select required value={form.city} onChange={(e) => set("city", e.target.value)} className="input" disabled={!form.governorate}>
-                  <option value="">{ar ? "اختر المدينة" : "Select city"}</option>
-                  {governorates.find((g) => g.ar === form.governorate)?.cities.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </Field>
+              {!selectedAddress && (
+                <>
+                  <Field label={t.checkout.governorate}>
+                    <select required value={form.governorate} onChange={(e) => { set("governorate", e.target.value); set("city", ""); }} className="input">
+                      <option value="">{ar ? "اختر المحافظة" : "Select governorate"}</option>
+                      {governorates.map((g) => <option key={g.ar} value={g.ar}>{ar ? g.ar : `${g.en} (${g.ar})`}</option>)}
+                    </select>
+                  </Field>
+                  <Field label={t.checkout.city}>
+                    <select required value={form.city} onChange={(e) => set("city", e.target.value)} className="input" disabled={!form.governorate}>
+                      <option value="">{ar ? "اختر المدينة" : "Select city"}</option>
+                      {governorates.find((g) => g.ar === form.governorate)?.cities.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </Field>
+                </>
+              )}
               <div className="rounded-xl bg-surface p-4 text-sm sm:col-span-2" aria-live="polite">
                 <p className="flex flex-wrap justify-between gap-2 font-semibold"><span>{t.cart.shipping}</span><span>{shippingText}</span></p>
                 <p className="mt-1 text-fg-muted">
@@ -252,17 +332,19 @@ export default function CheckoutPage() {
                 </p>
                 {shippingError && <button type="button" onClick={retryShipping} className="btn btn-secondary mt-3">{ar ? "إعادة حساب الشحن" : "Retry shipping"}</button>}
               </div>
-              <Field label={t.checkout.address} className="sm:col-span-2">
-                <textarea
-                  required
-                  autoComplete="street-address"
-                  value={form.address}
-                  onChange={(e) => set("address", e.target.value)}
-                  rows={2}
-                  className="input"
-                  placeholder={t.checkout.addressPlaceholder}
-                />
-              </Field>
+              {!selectedAddress && (
+                <Field label={t.checkout.address} className="sm:col-span-2">
+                  <textarea
+                    required
+                    autoComplete="street-address"
+                    value={form.address}
+                    onChange={(e) => set("address", e.target.value)}
+                    rows={2}
+                    className="input"
+                    placeholder={t.checkout.addressPlaceholder}
+                  />
+                </Field>
+              )}
             </div>
           </div>
 

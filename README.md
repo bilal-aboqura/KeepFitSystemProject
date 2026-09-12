@@ -93,6 +93,12 @@ The legacy catalog seeder requires the original `Data/montgat*.json` files.
 Feature migrations run independently of this catalog import. Configure products,
 delivery locations and provider sandbox credentials before end-to-end checkout acceptance.
 
+For Feature 001/002 regression only, seed four visibly marked products with
+`npm run seed:test-products`. They use the current product model and reserved
+`TEST-F001002-*` SKUs; they are not production catalog data. Remove all of them and their
+test-only category with `npm run remove:test-products`. Existing order-item snapshots remain
+intact because their optional product references are cleared by the database foreign key.
+
 ## Operational Integrations
 
 Kashier, Bosta, Mylerz, notifications, Meta tracking, and analytics are existing working

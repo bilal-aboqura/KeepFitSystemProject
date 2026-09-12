@@ -7,13 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
+    "test": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run",
     "test:customer-db": "node --env-file=.env.local node_modules/vitest/vitest.mjs run",
     "test:customer-coverage": "node --env-file=.env.local node_modules/vitest/vitest.mjs run --coverage",
     "test:watch": "vitest",
-    "test:customer-db": "node --env-file=.env.local node_modules/vitest/vitest.mjs run tests/integration/customer-type-approval.test.ts",
     "migrate:feature-001": "node --env-file=.env.local scripts/migrate-feature-001.mjs",
-    "migrate:feature-002": "node --env-file=.env.local scripts/migrate-feature-002.mjs"
+    "migrate:feature-002": "node --env-file=.env.local scripts/migrate-feature-002.mjs",
+    "seed:test-products": "node --env-file=.env.local scripts/seed-test-products.mjs",
+    "remove:test-products": "node --env-file=.env.local scripts/seed-test-products.mjs --remove"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

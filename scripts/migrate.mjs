@@ -14,6 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ORIGINAL = path.resolve(__dirname, "../../"); // D:\XemoMainWebSite
 
 const connectionString = process.env.DIRECT_URL;
+const schemaOnly = process.argv.includes("--schema-only");
 if (!connectionString) {
   console.error("✗ DIRECT_URL is missing. Run with --env-file=.env.local");
   process.exit(1);
@@ -120,6 +121,12 @@ async function main() {
   await client.query(schemaSql);
   console.log("✓ Schema applied");
 
+  if (schemaOnly) {
+    console.log("✅ Schema-only migration complete");
+    await client.end();
+    return;
+  }
+
   // 2) Categories
   for (const [categoryIndex, c] of CATEGORY_FILES.entries()) {
     await client.query(
@@ -138,6 +145,10 @@ async function main() {
   for (const c of CATEGORY_FILES) {
     if (!c.file) continue;
     const file = path.join(ORIGINAL, "Data", c.file);
+    if (!fs.existsSync(file)) {
+      console.warn(`⚠ Skipping unavailable catalog source: ${c.file}`);
+      continue;
+    }
     const raw = JSON.parse(fs.readFileSync(file, "utf8"));
     const items = raw.products || [];
     for (const [i, p] of items.entries()) {

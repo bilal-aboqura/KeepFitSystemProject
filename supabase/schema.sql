@@ -103,6 +103,17 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
+-- Customers must exist before addresses and orders add their ownership FKs.
+create table if not exists public.customers (
+  id uuid primary key default gen_random_uuid(),
+  auth_user_id uuid unique references auth.users(id) on delete set null,
+  full_name text,
+  email text,
+  phone text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 drop policy if exists "product_images_admin_write" on storage.objects;
 create policy "product_images_admin_write" on storage.objects for all to authenticated
   using (bucket_id = 'product-images' and exists (select 1 from public.profiles where id = auth.uid() and is_admin))
