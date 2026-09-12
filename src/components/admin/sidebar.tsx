@@ -21,7 +21,7 @@ import {
 import { useLang } from "@/components/language/provider";
 import { cn } from "@/lib/utils";
 
-type NavKey = "dashboard" | "analytics" | "products" | "orders" | "reviews" | "customers" | "customerTypeRequests" | "newsletter" | "discounts" | "shipping" | "bundles" | "content" | "customize" | "settings";
+type NavKey = "dashboard" | "analytics" | "products" | "brands" | "categories" | "attributes" | "orders" | "reviews" | "customers" | "customerTypeRequests" | "newsletter" | "discounts" | "shipping" | "bundles" | "content" | "customize" | "settings";
 
 interface NavItem {
   href: string;
@@ -46,6 +46,9 @@ const NAV_GROUPS: NavGroup[] = [
     label: { en: "Commerce", ar: "التجارة" },
     items: [
       { href: "/admin/products", key: "products", Icon: Package },
+      { href: "/admin/catalog/brands", key: "brands", Icon: Tag },
+      { href: "/admin/catalog/categories", key: "categories", Icon: Layers },
+      { href: "/admin/catalog/attributes", key: "attributes", Icon: Settings },
       { href: "/admin/orders", key: "orders", Icon: ShoppingCart },
       { href: "/admin/reviews", key: "reviews", Icon: MessageSquareText },
       { href: "/admin/customers", key: "customers", Icon: Users },
@@ -67,6 +70,9 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 function getNavLabel(key: NavKey, t: Record<string, string>, ar: boolean): string {
+  if (key === "brands") return ar ? "العلامات التجارية" : "Brands";
+  if (key === "categories") return ar ? "الفئات" : "Categories";
+  if (key === "attributes") return ar ? "الخصائص" : "Attributes";
   if (key === "analytics") return ar ? "التحليلات" : "Analytics";
   if (key === "customize") return ar ? "التخصيص" : "Customize";
   if (key === "bundles") return ar ? "الباكدجات" : "Bundles";

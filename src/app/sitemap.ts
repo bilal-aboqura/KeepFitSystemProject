@@ -34,7 +34,10 @@ async function getProducts() {
   if (!sb) return [];
   const { data } = await sb
     .from("products")
-    .select("slug")
-    .eq("is_active", true);
+    .select("slug, product_variants!inner(id)")
+    .eq("is_active", true)
+    .is("archived_at", null)
+    .eq("product_variants.is_active", true)
+    .is("product_variants.archived_at", null);
   return (data as { slug: string }[]) ?? [];
 }

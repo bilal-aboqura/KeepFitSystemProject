@@ -1,4 +1,6 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getCatalogProductBySlug, listStorefrontProducts } from "@/lib/catalog/queries";
+import type { CatalogMedia, CatalogProduct, CatalogVariant, ProductSpecification } from "@/lib/catalog/types";
 
 export interface ProductCard {
   id: string;
@@ -10,6 +12,8 @@ export interface ProductCard {
   images: string[];
   is_featured: boolean;
   stock: number;
+  default_variant?: CatalogVariant | null;
+  variant_count?: number;
 }
 
 export interface ProductDetail extends ProductCard {
@@ -20,6 +24,24 @@ export interface ProductDetail extends ProductCard {
   long_desc_ar: string;
   weight: string | null;
   category_id: string | null;
+  brand_id: string | null;
+  brand_name_en: string | null;
+  brand_name_ar: string | null;
+  variants: CatalogVariant[];
+  media: CatalogMedia[];
+  specifications: ProductSpecification[];
+}
+
+function toProductCard(product: CatalogProduct): ProductCard {
+  const defaultVariant = product.variants.find((variant) => variant.is_default) ?? product.variants[0] ?? null;
+  const lowest = [...product.variants].sort((a, b) => a.base_price - b.base_price)[0] ?? defaultVariant;
+  return {
+    id: product.id, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar,
+    price: lowest?.base_price ?? 0, compare_at_price: lowest?.compare_at_price ?? null,
+    images: product.media.map((media) => media.public_url), is_featured: product.is_featured,
+    stock: product.variants.reduce((sum, variant) => sum + variant.stock, 0),
+    default_variant: defaultVariant, variant_count: product.variants.length,
+  };
 }
 
 export interface CategoryInfo {
@@ -40,22 +62,7 @@ const HOME_CARE_FALLBACK: CategoryInfo = {
 
 /** Featured + recent active products for the homepage. */
 export async function getFeaturedProducts(limit = 8): Promise<ProductCard[]> {
-  const supabase = await getSupabaseServerClient();
-  if (!supabase) return [];
-  const { data, error } = await supabase
-    .from("products")
-    .select(
-      "id, slug, name_en, name_ar, price, compare_at_price, images, is_featured, stock",
-    )
-    .eq("is_active", true)
-    .order("is_featured", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) {
-    console.error("getFeaturedProducts:", error.message);
-    return [];
-  }
-  return (data ?? []) as ProductCard[];
+  return (await listStorefrontProducts({ limit })).map(toProductCard);
 }
 
 export async function getCategoryBySlug(
@@ -99,40 +106,26 @@ export async function getCategoryById(id: string): Promise<CategoryInfo | null> 
 export async function getProductsByCategory(
   categorySlug: string,
 ): Promise<ProductCard[]> {
-  const supabase = await getSupabaseServerClient();
-  if (!supabase) return [];
   const category = await getCategoryBySlug(categorySlug);
   if (!category) return [];
   if (!category.id) return [];
-  const { data, error } = await supabase
-    .from("products")
-    .select(
-      "id, slug, name_en, name_ar, price, compare_at_price, images, is_featured, stock",
-    )
-    .eq("is_active", true)
-    .eq("category_id", category.id)
-    .order("created_at", { ascending: false });
-  if (error) {
-    console.error("getProductsByCategory:", error.message);
-    return [];
-  }
-  return (data ?? []) as ProductCard[];
+  return (await listStorefrontProducts({ categoryId: category.id })).map(toProductCard);
 }
 
 export async function getProductBySlug(
   slug: string,
 ): Promise<ProductDetail | null> {
-  const supabase = await getSupabaseServerClient();
-  if (!supabase) return null;
-  const { data } = await supabase
-    .from("products")
-    .select(
-      "id, slug, sku, name_en, name_ar, short_desc_en, short_desc_ar, long_desc_en, long_desc_ar, price, compare_at_price, images, is_featured, stock, weight, category_id",
-    )
-    .eq("is_active", true)
-    .eq("slug", slug)
-    .maybeSingle();
-  return (data as ProductDetail) ?? null;
+  const product = await getCatalogProductBySlug(slug);
+  if (!product) return null;
+  const card = toProductCard(product);
+  return {
+    ...card, sku: card.default_variant?.sku ?? null,
+    short_desc_en: product.short_desc_en, short_desc_ar: product.short_desc_ar,
+    long_desc_en: product.long_desc_en, long_desc_ar: product.long_desc_ar,
+    weight: null, category_id: product.category_id, brand_id: product.brand_id,
+    brand_name_en: product.brand?.name_en ?? null, brand_name_ar: product.brand?.name_ar ?? null,
+    variants: product.variants, media: product.media, specifications: product.specifications,
+  };
 }
 
 /** Related products from the same category, excluding the current one. */
@@ -140,18 +133,9 @@ export async function getRelatedProducts(
   product: ProductDetail,
   limit = 4,
 ): Promise<ProductCard[]> {
-  const supabase = await getSupabaseServerClient();
-  if (!supabase || !product.category_id) return [];
-  const { data } = await supabase
-    .from("products")
-    .select(
-      "id, slug, name_en, name_ar, price, compare_at_price, images, is_featured, stock",
-    )
-    .eq("is_active", true)
-    .eq("category_id", product.category_id)
-    .neq("id", product.id)
-    .limit(limit);
-  return (data as ProductCard[]) ?? [];
+  if (!product.category_id) return [];
+  return (await listStorefrontProducts({ categoryId: product.category_id, limit: limit + 1 }))
+    .filter((item) => item.id !== product.id).slice(0, limit).map(toProductCard);
 }
 
 /* ─── Bundle helpers (config stored in settings table as JSON) ─────────────── */
@@ -246,6 +230,7 @@ export async function resolveBundles(): Promise<ResolvedBundle[]> {
   if (!supabase) return [];
 
   const configs = await getBundleConfigs();
+  const catalogProducts = new Map((await listStorefrontProducts()).map((product) => [product.id, toProductCard(product)]));
   const results: ResolvedBundle[] = [];
 
   for (const config of configs) {
@@ -300,7 +285,8 @@ export async function resolveBundles(): Promise<ResolvedBundle[]> {
       }
     }
 
-    if (products.length === 0) continue;
+    products = products.map((product) => catalogProducts.get(product.id)).filter((product): product is ProductCard => Boolean(product));
+    if (products.length === 0 || products.some((product) => !product.default_variant)) continue;
 
     const originalPrice = products.reduce((s, p) => s + Number(p.price), 0);
     results.push({
@@ -323,20 +309,12 @@ export async function resolveBundles(): Promise<ResolvedBundle[]> {
 export async function getCheapestInCategory(
   categorySlug: string,
 ): Promise<ProductCard | null> {
-  const supabase = await getSupabaseServerClient();
-  if (!supabase) return null;
   const category = await getCategoryBySlug(categorySlug);
   if (!category) return null;
-  const { data } = await supabase
-    .from("products")
-    .select("id, slug, name_en, name_ar, price, compare_at_price, images, is_featured, stock")
-    .eq("is_active", true)
-    .eq("category_id", category.id)
-    .gt("stock", 0)
-    .order("price", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  return (data as ProductCard) ?? null;
+  const products = (await listStorefrontProducts({ categoryId: category.id })).map(toProductCard)
+    .filter((product) => product.stock > 0)
+    .sort((a, b) => a.price - b.price);
+  return products[0] ?? null;
 }
 
 /* ─── Checkout settings (editable from admin Customize page) ─────────────── */
@@ -601,17 +579,6 @@ export async function getSocialStats(): Promise<SocialStats> {
 
 /** Lightweight search across the active catalog. */
 export async function searchProducts(query: string): Promise<ProductCard[]> {
-  const supabase = await getSupabaseServerClient();
-  if (!supabase || !query.trim()) return [];
-  const { data } = await supabase
-    .from("products")
-    .select(
-      "id, slug, name_en, name_ar, price, compare_at_price, images, is_featured, stock",
-    )
-    .eq("is_active", true)
-    .or(
-      `name_en.ilike.%${query}%,name_ar.ilike.%${query}%,long_desc_en.ilike.%${query}%`,
-    )
-    .limit(20);
-  return (data as ProductCard[]) ?? [];
+  if (!query.trim()) return [];
+  return (await listStorefrontProducts({ query, limit: 20 })).map(toProductCard);
 }

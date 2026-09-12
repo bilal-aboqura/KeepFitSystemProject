@@ -13,16 +13,15 @@ export async function ProductJsonLd({ slug }: { slug: string }) {
     image: product.images?.[0]
       ? [new URL(product.images[0], process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").toString()]
       : undefined,
-    offers: {
+    offers: product.variants.map((variant) => ({
       "@type": "Offer",
-      price: Number(product.price).toFixed(2),
+      sku: variant.sku,
+      price: Number(variant.base_price).toFixed(2),
       priceCurrency: "EGP",
-      availability:
-        product.stock > 0
-          ? "https://schema.org/InStock"
-          : "https://schema.org/OutOfStock",
-    },
-    brand: { "@type": "Brand", name: "Xeemo" },
+      availability: variant.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      url: new URL(`/product/${product.slug}`, process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").toString(),
+    })),
+    brand: product.brand_name_en ? { "@type": "Brand", name: product.brand_name_en } : undefined,
   };
 
   return (

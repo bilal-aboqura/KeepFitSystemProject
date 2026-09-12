@@ -4,6 +4,9 @@ import { useSyncExternalStore } from "react";
 
 export interface CartItem {
   id: string;
+  variant_id?: string;
+  product_id?: string;
+  sku?: string;
   slug: string;
   name_en: string;
   name_ar: string;
@@ -11,6 +14,9 @@ export interface CartItem {
   image: string;
   quantity: number;
   stock?: number;
+  variant_label_en?: string;
+  variant_label_ar?: string;
+  offer_key?: string;
 }
 
 const KEY = "cart";
@@ -95,6 +101,19 @@ export function addToCart(
   if (Math.min(previousQuantity + quantity, cap) > previousQuantity && options.showPrompt !== false && typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(CART_ITEM_ADDED_EVENT));
   }
+}
+
+export function migrateUnambiguousLegacyCartItem(
+  productId: string,
+  variant: Omit<CartItem, "quantity">,
+): boolean {
+  const items = readAll();
+  const legacyIndex = items.findIndex((item) => !item.variant_id && item.id === productId);
+  if (legacyIndex < 0 || !variant.variant_id) return false;
+  const legacy = items[legacyIndex];
+  items[legacyIndex] = { ...variant, quantity: Math.min(legacy.quantity, variant.stock ?? 99) };
+  commit(items);
+  return true;
 }
 
 export function updateQuantity(id: string, quantity: number): void {

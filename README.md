@@ -4,6 +4,10 @@ KeepFit System is a unified commerce and operations platform for a high-volume s
 business. It evolves the existing ecommerce application into an automation-first system where
 people handle exceptions, approvals, and operational issues rather than routine work.
 
+## Feature 003 catalog demo
+
+After applying `npm run migrate:feature-003`, set `CATALOG_MEDIA_ENV` to `development`, `staging`, or `test` and run `npm run seed:catalog-demo`. The seed creates clearly marked multi-option protein, single-Variant creatine, capsule, strip/tablet, and liquid examples. Remove only those marked records with `npm run remove:catalog-demo`. Both commands refuse to run in production or without an explicit non-production catalog environment.
+
 ## Current Platform
 
 - Next.js 16 and React 19 storefront and admin application

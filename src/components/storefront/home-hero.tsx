@@ -5,9 +5,6 @@ import Image from "next/image";
 import { useRef, useState, useEffect } from "react";
 import {
   ArrowRight,
-  Sparkles,
-  Truck,
-  CreditCard,
   Car,
   Bike,
   Armchair,
@@ -28,20 +25,12 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { useLang } from "@/components/language/provider";
-import { cn, formatPrice } from "@/lib/utils";
+import { formatPrice } from "@/lib/utils";
 import { addToCart } from "@/lib/cart";
 import type { ResolvedBundle, SocialStats, HeroOverrides } from "@/lib/data/catalog";
 import { FadeIn, FadeInStagger } from "@/components/ui/fade-in";
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
-
-const MARQUEE_ITEMS = [
-  { en: "Pay when it arrives — not before", ar: "ادفع لما المنتج يوصلك — مش قبلها", Icon: Banknote },
-  { en: "7-day hassle-free returns", ar: "استرجاع خلال 7 أيام", Icon: RotateCcw },
-  { en: "100% Made in Egypt", ar: "صناعة مصرية 100%", Icon: Sparkles },
-  { en: "Free shipping over 600 EGP", ar: "شحن مجاني فوق 600 ج.م", Icon: Truck },
-  { en: "Secure card payments", ar: "دفع آمن بالبطاقة", Icon: CreditCard },
-];
 
 const CATEGORIES = [
   { href: "/category/carcare", key: "carcare" as const, Icon: Car, image: "/images/carcare.webp", imageClassName: "object-[center_30%]" },
@@ -114,34 +103,6 @@ export function HomeHero({ overrides }: { overrides?: HeroOverrides }) {
   const ar = lang === "ar";
   const [activeIndex, setActiveIndex] = useState(0);
   const o = overrides ?? {};
-  const marqueeItems = [
-    {
-      ...MARQUEE_ITEMS[0],
-      en: o.marquee_cod_en || MARQUEE_ITEMS[0].en,
-      ar: o.marquee_cod_ar || MARQUEE_ITEMS[0].ar,
-    },
-    {
-      ...MARQUEE_ITEMS[1],
-      en: o.marquee_returns_en || MARQUEE_ITEMS[1].en,
-      ar: o.marquee_returns_ar || MARQUEE_ITEMS[1].ar,
-    },
-    {
-      ...MARQUEE_ITEMS[2],
-      en: o.marquee_made_en || MARQUEE_ITEMS[2].en,
-      ar: o.marquee_made_ar || MARQUEE_ITEMS[2].ar,
-    },
-    {
-      ...MARQUEE_ITEMS[3],
-      en: o.marquee_shipping_en || MARQUEE_ITEMS[3].en,
-      ar: o.marquee_shipping_ar || MARQUEE_ITEMS[3].ar,
-    },
-    {
-      ...MARQUEE_ITEMS[4],
-      en: o.marquee_payments_en || MARQUEE_ITEMS[4].en,
-      ar: o.marquee_payments_ar || MARQUEE_ITEMS[4].ar,
-    },
-  ];
-
   const heroBackgroundImage = o.background_image || DEFAULT_HERO_BACKGROUND;
   const heroImages = (o.product_images?.length ? o.product_images : DEFAULT_HERO_IMAGES.map((img) => img.src))
     .map((src, index) => ({
@@ -429,15 +390,23 @@ export function BundleOffersSection({ bundles }: { bundles?: ResolvedBundle[] })
     const ratio = totalOriginal > 0 ? bundle.bundlePrice / totalOriginal : 1;
 
     for (const product of bundle.products) {
+      const selectedVariant = product.default_variant;
+      if (!selectedVariant) continue;
       const discountedPrice = Math.round(Number(product.price) * ratio);
       addToCart({
-        id: product.id,
+        id: selectedVariant.id,
+        variant_id: selectedVariant.id,
+        product_id: product.id,
+        sku: selectedVariant.sku,
         slug: product.slug,
         name_en: product.name_en,
         name_ar: product.name_ar,
         price: discountedPrice,
         image: product.images?.[0] ?? "/images/placeholder.webp",
-        stock: product.stock,
+        stock: selectedVariant.stock,
+        variant_label_en: selectedVariant.label_en,
+        variant_label_ar: selectedVariant.label_ar,
+        offer_key: bundle.key,
       });
     }
     setAddedKey(bundle.key);

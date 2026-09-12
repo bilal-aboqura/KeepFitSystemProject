@@ -13,10 +13,16 @@
     "test:watch": "vitest",
     "migrate:feature-001": "node --env-file=.env.local scripts/migrate-feature-001.mjs",
     "migrate:feature-002": "node --env-file=.env.local scripts/migrate-feature-002.mjs",
+    "migrate:feature-003": "node --env-file=.env.local scripts/migrate-feature-003.mjs",
+    "seed:catalog-demo": "node --env-file=.env.local scripts/seed-catalog-demo.mjs",
+    "remove:catalog-demo": "node --env-file=.env.local scripts/seed-catalog-demo.mjs --remove",
+    "cleanup:catalog-media": "node --env-file=.env.local scripts/cleanup-catalog-media.mjs",
     "seed:test-products": "node --env-file=.env.local scripts/seed-test-products.mjs",
     "remove:test-products": "node --env-file=.env.local scripts/seed-test-products.mjs --remove"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1131.0",
+    "@aws-sdk/s3-request-presigner": "^3.1131.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "clsx": "^2.1.1",
@@ -30,12 +36,12 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/pg": "^8.15.0",
-    "@vitest/coverage-v8": "^4.1.11",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.15.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "pg": "^8.22.0",

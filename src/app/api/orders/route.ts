@@ -8,15 +8,16 @@ import { sendPurchaseOrderToMeta } from "@/lib/meta-conversions";
 import { getCurrentCustomer } from "@/lib/customers/session";
 import { isCustomerProfileComplete } from "@/lib/customers/identity";
 import { confirmationGrantCookieName, confirmationCookieOptions } from "@/lib/customers/grants";
+import { CatalogError } from "@/lib/catalog/errors";
 
 const ItemSchema = z.object({
-  product_id: z.string().uuid(),
-  name_en: z.string().min(1),
-  name_ar: z.string().optional(),
-  price: z.number().nonnegative(),
+  variant_id: z.string().uuid().optional(),
+  product_id: z.string().uuid().optional(),
   quantity: z.number().int().positive(),
   image: z.string().optional(),
-});
+  offer: z.literal("order_bump").optional(),
+  offer_key: z.string().trim().min(1).max(80).optional(),
+}).refine((item) => Boolean(item.variant_id || item.product_id), { error: "A variant is required" });
 
 
 const BodySchema = z.object({
@@ -38,7 +39,8 @@ const BodySchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     return await placeOrder(request);
-  } catch {
+  } catch (error) {
+    if (error instanceof CatalogError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     return NextResponse.json({ error: "Checkout is temporarily unavailable. Please try again." }, { status: 503 });
   }
 }

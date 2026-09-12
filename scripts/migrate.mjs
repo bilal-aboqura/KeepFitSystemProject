@@ -142,6 +142,7 @@ async function main() {
 
   // 3) Products
   let productCount = 0;
+  await client.query("begin");
   for (const c of CATEGORY_FILES) {
     if (!c.file) continue;
     const file = path.join(ORIGINAL, "Data", c.file);
@@ -156,7 +157,7 @@ async function main() {
       const slug = `${slugify(p.name)}-${p.id}`;
       const longEn = p.longdescription || p.description || "";
       const longAr = p.longdescription_ar || p.description_ar || "";
-      await client.query(
+      const { rows: productRows } = await client.query(
         `insert into public.products
          (legacy_id, slug, sku, category_id, name_en, name_ar, short_desc_en, short_desc_ar,
           long_desc_en, long_desc_ar, price, stock, is_active, is_featured, images, weight)
@@ -166,7 +167,8 @@ async function main() {
            name_en=excluded.name_en, name_ar=excluded.name_ar,
            long_desc_en=excluded.long_desc_en, long_desc_ar=excluded.long_desc_ar,
            price=excluded.price, stock=excluded.stock, is_featured=excluded.is_featured,
-           images=excluded.images`,
+           images=excluded.images
+         returning id`,
         [
           p.id, slug, p.id.toUpperCase(), catBySlug[c.slug],
           p.name, p.name_ar, p.description || "", p.description_ar || "",
@@ -175,9 +177,22 @@ async function main() {
           images,
         ],
       );
+      const productId = productRows[0].id;
+      await client.query(
+        `insert into public.product_variants(product_id,sku,label_en,label_ar,base_price,stock,is_default,is_active,combination_fingerprint)
+         values($1,$2,'','',$3,$4,true,true,'__default__')
+         on conflict do nothing`,
+        [productId, p.id.toUpperCase(), Number(p.price) || 0, 100],
+      );
+      await client.query(
+        `update public.product_variants set base_price=$2,stock=$3,is_active=true,archived_at=null,updated_at=now()
+         where product_id=$1 and is_default`,
+        [productId, Number(p.price) || 0, 100],
+      );
       productCount++;
     }
   }
+  await client.query("commit");
   console.log(`✓ ${productCount} products`);
 
   // 4) Locations

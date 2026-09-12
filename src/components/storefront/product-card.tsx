@@ -20,19 +20,25 @@ export function ProductCard({ product }: { product: ProductCardData }) {
   const hasSale = Number.isFinite(compareAtPrice) && compareAtPrice > price;
   const savings = hasSale ? compareAtPrice - price : 0;
   const discountPercent = hasSale ? Math.round((savings / compareAtPrice) * 100) : 0;
+  const quickVariant = product.variant_count === 1 ? product.default_variant : null;
 
   function handleQuickAdd(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (outOfStock) return;
+    if (outOfStock || !quickVariant) return;
     addToCart({
-      id: product.id,
+      id: quickVariant.id,
+      variant_id: quickVariant.id,
+      product_id: product.id,
+      sku: quickVariant.sku,
       slug: product.slug,
       name_en: product.name_en,
       name_ar: product.name_ar,
       price,
       image,
-      stock: product.stock,
+      stock: quickVariant.stock,
+      variant_label_en: quickVariant.label_en,
+      variant_label_ar: quickVariant.label_ar,
     });
     trackMetaEvent("AddToCart", productMetaParams({
       id: product.id,
@@ -66,7 +72,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
         </div>
 
         {/* Quick add */}
-        {!outOfStock && (
+        {!outOfStock && quickVariant && (
           <button
             onClick={handleQuickAdd}
             className="absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-white transition-opacity duration-200 hover:bg-brand-dark focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { ShoppingBag, Zap, Package, CheckCircle, Banknote } from "lucide-react";
 import { useLang } from "@/components/language/provider";
 import { QuantityStepper } from "./quantity-stepper";
@@ -11,20 +10,25 @@ import { addToCart } from "@/lib/cart";
 import { productMetaParams, trackMetaEvent } from "@/lib/meta-pixel";
 import { trackStoreEvent } from "@/lib/store-analytics";
 import type { ProductDetail } from "@/lib/data/catalog";
+import { VariantSelector } from "./variant-selector";
+import { ProductGallery } from "./product-gallery";
 
 export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
   const { t, lang } = useLang();
   const router = useRouter();
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
-  const out = product.stock <= 0;
+  const initialVariant = product.variants.find((variant) => variant.is_default) ?? product.variants[0];
+  const [selectedId, setSelectedId] = useState(initialVariant?.id ?? "");
+  const selectedVariant = product.variants.find((variant) => variant.id === selectedId) ?? initialVariant;
+  const out = !selectedVariant || selectedVariant.stock <= 0 || !selectedVariant.is_active;
   const ar = lang === "ar";
 
   const name = ar ? product.name_ar : product.name_en;
   const desc = ar ? product.long_desc_ar : product.long_desc_en;
-  const image = product.images?.[0] ?? "/images/placeholder.webp";
-  const price = Number(product.price);
-  const compareAtPrice = Number(product.compare_at_price);
+  const image = selectedVariant?.media[0]?.public_url ?? product.images?.[0] ?? "/images/placeholder.webp";
+  const price = Number(selectedVariant?.base_price ?? product.price);
+  const compareAtPrice = Number(selectedVariant?.compare_at_price ?? product.compare_at_price);
   const hasSale = Number.isFinite(compareAtPrice) && compareAtPrice > price;
   const savings = hasSale ? compareAtPrice - price : 0;
   const discountPercent = hasSale ? Math.round((savings / compareAtPrice) * 100) : 0;
@@ -39,28 +43,25 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
   }, [price, product.id]);
 
   function handleAdd() {
-    if (out) return;
-    addToCart({ id: product.id, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, price, image, stock: product.stock }, qty);
-    trackMetaEvent("AddToCart", productMetaParams({ id: product.id, price, quantity: qty }));
+    if (out || !selectedVariant) return;
+    addToCart({ id: selectedVariant.id, variant_id: selectedVariant.id, product_id: product.id, sku: selectedVariant.sku, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, variant_label_en: selectedVariant.label_en, variant_label_ar: selectedVariant.label_ar, price, image, stock: selectedVariant.stock }, qty);
+    trackMetaEvent("AddToCart", productMetaParams({ id: selectedVariant.id, price, quantity: qty }));
     trackStoreEvent("add_to_cart");
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   }
 
   function buyNow() {
-    if (out) return;
-    addToCart({ id: product.id, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, price, image, stock: product.stock }, qty, { showPrompt: false });
-    trackMetaEvent("AddToCart", productMetaParams({ id: product.id, price, quantity: qty }));
+    if (out || !selectedVariant) return;
+    addToCart({ id: selectedVariant.id, variant_id: selectedVariant.id, product_id: product.id, sku: selectedVariant.sku, slug: product.slug, name_en: product.name_en, name_ar: product.name_ar, variant_label_en: selectedVariant.label_en, variant_label_ar: selectedVariant.label_ar, price, image, stock: selectedVariant.stock }, qty, { showPrompt: false });
+    trackMetaEvent("AddToCart", productMetaParams({ id: selectedVariant.id, price, quantity: qty }));
     trackStoreEvent("add_to_cart");
     router.push("/checkout");
   }
 
   return (
     <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
-      {/* Image */}
-      <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-white">
-        <Image src={image} alt={name} fill sizes="(max-width:1024px) 100vw, 50vw" priority className="object-contain p-6" />
-      </div>
+      <ProductGallery productMedia={product.media} variantMedia={selectedVariant?.media ?? []} name={name} />
 
       {/* Info */}
       <div className="flex flex-col">
@@ -90,7 +91,7 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
           ) : (
             <span className="pill pill-success">
               <CheckCircle size={12} />
-              {ar ? "متوفر" : "In stock"} &middot; {product.stock} {ar ? "قطعة" : "units"}
+              {ar ? "متوفر" : "In stock"} &middot; {selectedVariant?.stock ?? 0} {ar ? "قطعة" : "units"}
             </span>
           )}
           <span className="pill pill-info gap-1">
@@ -98,6 +99,10 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
             {t.product.cod}
           </span>
         </div>
+
+        <VariantSelector variants={product.variants} selectedId={selectedVariant?.id ?? ""} onChange={(variant) => { setSelectedId(variant.id); setQty(1); }} />
+
+        {selectedVariant?.sku && <p className="mt-3 text-xs text-fg-dim">SKU: {selectedVariant.sku}</p>}
 
         {product.weight && (
           <div className="mt-4 flex items-center gap-2 text-sm text-fg-dim">
@@ -108,7 +113,7 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
 
         {/* Actions */}
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <QuantityStepper value={qty} onChange={setQty} max={Math.max(1, product.stock)} />
+          <QuantityStepper value={qty} onChange={setQty} max={Math.max(1, selectedVariant?.stock ?? 0)} />
           <button onClick={handleAdd} disabled={out} className="btn btn-primary gap-2">
             {addButtonContent}
           </button>
@@ -128,6 +133,17 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
               {desc}
             </p>
           </div>
+        )}
+
+        {product.specifications.length > 0 && (
+          <dl className="mt-8 grid grid-cols-1 gap-3 border-t border-border pt-6 sm:grid-cols-2">
+            {product.specifications.map((specification) => (
+              <div key={specification.id} className="rounded-xl bg-slate-50 p-3">
+                <dt className="text-xs text-fg-dim">{ar ? specification.definition?.label_ar : specification.definition?.label_en}</dt>
+                <dd className="mt-1 text-sm font-semibold text-fg">{(ar ? specification.value?.label_ar : specification.value?.label_en) ?? specification.text_value ?? String(specification.number_value ?? specification.boolean_value ?? "")}{specification.definition?.unit ? ` ${specification.definition.unit}` : ""}</dd>
+              </div>
+            ))}
+          </dl>
         )}
       </div>
 

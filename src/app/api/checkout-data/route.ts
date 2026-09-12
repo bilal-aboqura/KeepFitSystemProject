@@ -14,7 +14,8 @@ export async function GET() {
   const configuredBumpProduct = selectedSlug
     ? await getProductBySlug(selectedSlug)
     : null;
-  const bumpProduct = configuredBumpProduct ?? await getCheapestInCategory("air-freshener");
+  const bumpCandidate = configuredBumpProduct ?? await getCheapestInCategory("air-freshener");
+  const bumpProduct = bumpCandidate?.variant_count === 1 && bumpCandidate.default_variant ? bumpCandidate : null;
 
   return NextResponse.json({
     governorates,
@@ -22,11 +23,12 @@ export async function GET() {
     bumpProduct: bumpProduct
       ? {
           id: bumpProduct.id,
+          variant_id: bumpProduct.default_variant?.id,
           slug: bumpProduct.slug,
           name_en: bumpProduct.name_en,
           name_ar: bumpProduct.name_ar,
           originalPrice: Number(bumpProduct.price),
-          bumpPrice: settings.bumpPrice,
+          bumpPrice: selectedSlug ? settings.bumpPrice : Number(bumpProduct.default_variant?.base_price ?? bumpProduct.price),
           desc_en: settings.bumpDesc_en,
           desc_ar: settings.bumpDesc_ar,
           image: bumpProduct.images?.[0] ?? null,

@@ -2,6 +2,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/server";
 import type { BostaShipment } from "@/lib/bosta";
 import { listCustomerTypes } from "@/lib/customers/customer-types";
 import type { CustomerType } from "@/lib/customers/types";
+export { adminCatalogSearch as adminListCatalogProducts } from "@/lib/catalog/queries";
 
 // ── Products ─────────────────────────────────────────────────────────────────
 export interface AdminProduct {
@@ -102,7 +103,7 @@ export async function adminGetOrder(id: string) {
   const { data } = await sb
     .from("orders")
     .select(
-      "*, order_items(id, product_id, name_en, name_ar, price, quantity, image)",
+      "*, order_items(id, product_id, variant_id, sku, name_en, name_ar, variant_label_en, variant_label_ar, price, quantity, image)",
     )
     .eq("id", id)
     .maybeSingle();

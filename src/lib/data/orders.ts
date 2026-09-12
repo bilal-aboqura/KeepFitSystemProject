@@ -1,9 +1,11 @@
 import "server-only";
 import { newConfirmationGrant } from "@/lib/customers/grants";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
-import { getCheckoutSettings } from "@/lib/data/catalog";
+import { getCheckoutSettings, resolveBundles } from "@/lib/data/catalog";
 import { calcItemsSubtotal, calcOnlinePaymentDiscount } from "@/lib/pricing";
 import { is450MlDestination, is450MlProduct } from "@/lib/shipping-policy";
+import { resolvePurchasableVariants } from "@/lib/catalog/variants";
+import { CatalogError } from "@/lib/catalog/errors";
 
 export interface CreateOrderInput {
   customer_name: string;
@@ -18,12 +20,12 @@ export interface CreateOrderInput {
   user_id?: string | null;
   customer_id?: string | null;
   items: {
-    product_id: string;
-    name_en: string;
-    name_ar?: string;
-    price: number;
+    variant_id?: string;
+    product_id?: string;
     quantity: number;
     image?: string;
+    offer?: "order_bump";
+    offer_key?: string;
   }[];
 }
 
@@ -33,6 +35,14 @@ export interface CreatedOrder {
   order_number: string;
   grand_total: number;
   payment_method: string;
+}
+
+interface ResolvedOrderVariant {
+  id: string;
+  product_id: string;
+  base_price: number;
+  stock: number;
+  product: { slug?: string } | { slug?: string }[];
 }
 
 /** Generate a short, human-friendly order number like XE-1A2B3C-240624 */
@@ -153,18 +163,54 @@ export async function createOrder(
   const sb = getSupabaseServiceClient();
   if (!sb || input.items.length === 0) return null;
 
-  const itemsTotal = calcItemsSubtotal(input.items);
+  const checkoutSettings = await getCheckoutSettings();
+  const resolvedItems: { variant_id: string; product_id: string; price: number; quantity: number; image?: string; offer_key?: string }[] = [];
+  const explicitIds = input.items.flatMap((item) => item.variant_id ? [item.variant_id] : []);
+  const explicitVariants = new Map<string, ResolvedOrderVariant>((await resolvePurchasableVariants(explicitIds)).map((variant) => [variant.id, variant as unknown as ResolvedOrderVariant]));
+  for (const item of input.items) {
+    let variant: ResolvedOrderVariant | undefined = item.variant_id ? explicitVariants.get(item.variant_id) : undefined;
+    if (!variant && item.product_id && !item.variant_id) {
+      const { data } = await sb.from("product_variants")
+        .select("id,product_id,base_price,stock,is_active,archived_at,product:products!inner(id,slug,is_active,archived_at)")
+        .eq("product_id", item.product_id).eq("is_active", true).is("archived_at", null)
+        .eq("product.is_active", true).is("product.archived_at", null).limit(2);
+      if (data?.length === 1) variant = data[0] as unknown as ResolvedOrderVariant;
+      else throw new CatalogError("This saved cart item has multiple or unavailable options. Choose the product again.", 409, "ambiguous_legacy_cart");
+    }
+    if (!variant) throw new CatalogError("The selected variant is no longer available.", 409, "inactive_variant");
+    if (Number(variant.stock) < item.quantity) throw new CatalogError("The selected quantity is no longer available.", 409, "variant_stock_changed");
+    const product = Array.isArray(variant.product) ? variant.product[0] : variant.product;
+    const orderBumpPrice = item.offer === "order_bump" && product && checkoutSettings.bumpProductSlugs.includes(String(product.slug))
+      ? checkoutSettings.bumpPrice
+      : Number(variant.base_price);
+    resolvedItems.push({ variant_id: variant.id, product_id: variant.product_id, price: orderBumpPrice, quantity: item.quantity, image: item.image, offer_key: item.offer_key });
+  }
+
+  const bundleKeys = [...new Set(resolvedItems.flatMap((item) => item.offer_key ? [item.offer_key] : []))];
+  if (bundleKeys.length) {
+    const bundles = new Map((await resolveBundles()).map((bundle) => [bundle.key, bundle]));
+    for (const key of bundleKeys) {
+      const bundle = bundles.get(key);
+      const submitted = resolvedItems.filter((item) => item.offer_key === key);
+      const expectedIds = bundle?.products.map((product) => product.id).sort() ?? [];
+      const submittedIds = submitted.map((item) => item.product_id).sort();
+      if (!bundle || submitted.some((item) => item.quantity !== 1) || expectedIds.join("|") !== submittedIds.join("|")) return null;
+      const ratio = bundle.originalPrice > 0 ? bundle.bundlePrice / bundle.originalPrice : 1;
+      for (const item of submitted) item.price = Math.round(item.price * ratio * 100) / 100;
+    }
+  }
+
+  const itemsTotal = calcItemsSubtotal(resolvedItems);
   const onlinePaymentDiscount = calcOnlinePaymentDiscount(
     itemsTotal,
     input.payment_method,
   );
-  const [shipping, checkoutSettings] = await Promise.all([
+  const [shipping] = await Promise.all([
     getShippingCostForProducts(
       input.governorate,
       input.city,
-      input.items.map((item) => item.product_id),
+      resolvedItems.map((item) => item.product_id),
     ),
-    getCheckoutSettings(),
   ]);
   const shippingCost =
     itemsTotal >= checkoutSettings.freeShippingThreshold ? 0 : shipping.cost;
@@ -185,7 +231,7 @@ export async function createOrder(
         items_total: itemsTotal, shipping_cost: shippingCost, discount: totalDiscount,
         discount_code: codeDiscount?.code ?? null, grand_total: grandTotal, payment_method: input.payment_method,
       },
-      p_items: input.items, p_grant_hash: grant?.hash ?? null,
+      p_items: resolvedItems.map((item) => ({ variant_id: item.variant_id, product_id: item.product_id, price: item.price, quantity: item.quantity, image: item.image })), p_grant_hash: grant?.hash ?? null,
     });
     if (!error && data) return { ...data, confirmationGrant: grant } as CreatedOrder;
     if (error?.code !== "23505") return null;
@@ -214,6 +260,10 @@ export interface OrderForConfirmation {
   order_items: {
     id: string;
     product_id: string;
+    variant_id: string | null;
+    sku: string | null;
+    variant_label_en: string | null;
+    variant_label_ar: string | null;
     name_en: string;
     name_ar: string | null;
     price: number;
@@ -230,7 +280,7 @@ export async function getOrderByNumber(
   const { data } = await sb
     .from("orders")
     .select(
-      "id, order_number, customer_name, customer_phone, alt_phone, governorate, city, address, notes, items_total, shipping_cost, discount, grand_total, payment_method, payment_status, fulfillment_status, created_at, order_items(id, product_id, name_en, name_ar, price, quantity, image)",
+      "id, order_number, customer_name, customer_phone, alt_phone, governorate, city, address, notes, items_total, shipping_cost, discount, grand_total, payment_method, payment_status, fulfillment_status, created_at, order_items(id, product_id, variant_id, sku, name_en, name_ar, variant_label_en, variant_label_ar, price, quantity, image)",
     )
     .eq("order_number", orderNumber)
     .maybeSingle();

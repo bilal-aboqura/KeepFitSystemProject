@@ -19,7 +19,7 @@ import {
   BadgePercent,
 } from "lucide-react";
 import { useLang } from "@/components/language/provider";
-import { useCart, clearCart } from "@/lib/cart";
+import { useCart, clearCart, removeFromCart } from "@/lib/cart";
 import { calcItemsSubtotal, calcOnlinePaymentDiscount } from "@/lib/pricing";
 import { formatPrice } from "@/lib/utils";
 import type { GovernorateOption } from "@/lib/data/locations";
@@ -29,6 +29,7 @@ import type { CustomerAddress } from "@/lib/customers/types";
 
 interface BumpProduct {
   id: string;
+  variant_id: string;
   slug: string;
   name_en: string;
   name_ar: string;
@@ -77,7 +78,7 @@ export default function CheckoutPage() {
   const checkoutPayableItemsTotal = checkoutItemsTotal - onlineDiscount;
   const freeShipping = checkoutItemsTotal >= freeShippingThreshold;
   const shippingProductIds = [
-    ...items.map((item) => item.id),
+    ...items.map((item) => item.product_id ?? item.id),
     ...(bumpAdded && bumpProduct ? [bumpProduct.id] : []),
   ];
   const shippingProductsKey = shippingProductIds.join(",");
@@ -171,13 +172,13 @@ export default function CheckoutPage() {
     }
     setSubmitting(true);
     try {
-      const orderItems = items.map((i) => ({ product_id: i.id, name_en: i.name_en, name_ar: i.name_ar, price: i.price, quantity: i.quantity, image: i.image }));
+      const orderItems: { variant_id?: string; product_id?: string; quantity: number; image: string; offer?: "order_bump"; offer_key?: string }[] =
+        items.map((i) => ({ variant_id: i.variant_id, product_id: i.product_id ?? (i.variant_id ? undefined : i.id), quantity: i.quantity, image: i.image, offer_key: i.offer_key }));
       if (bumpAdded && bumpProduct) {
         orderItems.push({
+          variant_id: bumpProduct.variant_id,
           product_id: bumpProduct.id,
-          name_en: `[Bump] ${bumpProduct.name_en}`,
-          name_ar: `[عرض] ${bumpProduct.name_ar}`,
-          price: bumpProduct.bumpPrice,
+          offer: "order_bump",
           quantity: 1,
           image: bumpProduct.image ?? "",
         });
@@ -186,6 +187,9 @@ export default function CheckoutPage() {
       const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await res.json();
       if (!res.ok && data.redirect === "/account/complete-profile") { router.push("/account/complete-profile?next=%2Fcheckout"); return; }
+      if (!res.ok && data.code === "ambiguous_legacy_cart") {
+        items.filter((item) => !item.variant_id).forEach((item) => removeFromCart(item.id));
+      }
       if (!res.ok) throw new Error(data.error || "Order failed");
       if (form.payment_method === "card" && data.redirect?.startsWith("http")) { clearCart(); window.location.href = data.redirect; return; }
       clearCart();
