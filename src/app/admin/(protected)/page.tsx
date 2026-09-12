@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShoppingCart, DollarSign, Package, AlertTriangle } from "lucide-react";
+import { ShoppingCart, DollarSign, Package, AlertTriangle, ClipboardCheck, ArrowUpRight } from "lucide-react";
 import { getT, getLang } from "@/lib/i18n/server";
 import { getAdminStats } from "@/lib/data/admin";
 import { formatPrice } from "@/lib/utils";
@@ -97,6 +97,25 @@ export default async function AdminDashboardPage() {
           );
         })}
       </div>
+
+      <Link
+        href="/admin/customer-type-requests"
+        className="mt-6 flex flex-col gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-5 transition hover:border-amber-300 hover:bg-amber-100/70 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-200/70 text-amber-800">
+            <ClipboardCheck size={21} />
+          </span>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-800">{t.customerTypeAdmin.needsAttention}</p>
+            <p className="mt-1 text-base font-bold text-amber-950">{t.customerTypeAdmin.pendingRequests}</p>
+          </div>
+        </div>
+        <div className="flex min-h-11 items-center justify-between gap-3 rounded-xl bg-white/80 px-4 text-amber-900 sm:justify-center">
+          <span className="text-2xl font-bold">{stats ? stats.pendingCustomerTypeRequests : "-"}</span>
+          <ArrowUpRight size={18} />
+        </div>
+      </Link>
 
       <AdminSectionCard
         className="mt-6"

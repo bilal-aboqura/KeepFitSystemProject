@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { customerTypeCodes, customerTypeRequestStatuses } from "./types";
 
 export function normalizeEgyptianPhone(value: string) {
   const digits = normalizeContactDigits(value);
@@ -32,4 +33,45 @@ export const addressSchema = z.object({
   city: z.string().trim().min(1).max(100),
   address: z.string().trim().min(3).max(500),
   is_default: z.boolean().optional(),
+}).strict();
+
+export const customerTypeCodeSchema = z.enum(customerTypeCodes);
+export const protectedCustomerTypeCodeSchema = z.enum(["wholesale", "gym_owner"]);
+export const customerTypeRequestStatusSchema = z.enum(customerTypeRequestStatuses);
+
+const optionalText = (max: number) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().trim().max(max).optional(),
+  );
+
+const optionalBusinessPhone = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  egyptianPhoneSchema.optional(),
+);
+
+export const customerTypeRequestSchema = z.object({
+  requested_type_code: protectedCustomerTypeCodeSchema,
+  business_name: z.string().trim().min(2).max(160),
+  business_phone: optionalBusinessPhone,
+  governorate: optionalText(100),
+  city: optionalText(100),
+  business_description: optionalText(1000),
+  customer_note: optionalText(1000),
+}).strict();
+
+export const customerTypeDecisionSchema = z.object({
+  public_reason: optionalText(1000),
+  internal_note: optionalText(2000),
+}).strict();
+
+export const directCustomerTypeAssignmentSchema = z.object({
+  target_type_code: customerTypeCodeSchema,
+  reason: z.string().trim().min(2).max(1000),
+}).strict();
+
+export const adminCustomerTypeFiltersSchema = z.object({
+  status: customerTypeRequestStatusSchema.optional(),
+  requestedType: customerTypeCodeSchema.optional(),
+  effectiveType: customerTypeCodeSchema.optional(),
 }).strict();

@@ -1,1 +1,1 @@
-export {};
+export const serverOnlyMock = true;

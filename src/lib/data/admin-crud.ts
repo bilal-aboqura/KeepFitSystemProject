@@ -1,5 +1,7 @@
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 import type { BostaShipment } from "@/lib/bosta";
+import { listCustomerTypes } from "@/lib/customers/customer-types";
+import type { CustomerType } from "@/lib/customers/types";
 
 // ── Products ─────────────────────────────────────────────────────────────────
 export interface AdminProduct {
@@ -119,8 +121,11 @@ export interface AdminCustomer {
   total_spent: number;
   last_order_at: string;
   first_order_at: string;
-  auth_user_id?: string | null;
-  kind?: "customer" | "guest";
+  auth_user_id: string | null;
+  kind: "customer" | "guest";
+  is_persistent: boolean;
+  effective_type: CustomerType | null;
+  pending_request_id: string | null;
 }
 
 /**
@@ -131,56 +136,83 @@ export async function adminListCustomers(): Promise<AdminCustomer[]> {
   const sb = getSupabaseServiceClient();
   if (!sb) return [];
 
-  const { data: orders, error } = await sb
-    .from("orders")
-    .select("id, customer_id, customer_name, customer_phone, governorate, city, grand_total, payment_status, created_at")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("adminListCustomers:", error.message);
+  const [customerResult, orderResult, pendingResult, types] = await Promise.all([
+    sb
+      .from("customers")
+      .select("id, auth_user_id, full_name, phone, email, customer_type_id, created_at")
+      .order("created_at", { ascending: false }),
+    sb
+      .from("orders")
+      .select("id, customer_id, customer_name, customer_phone, governorate, city, grand_total, payment_status, created_at")
+      .order("created_at", { ascending: false }),
+    sb.from("customer_type_requests").select("id, customer_id").eq("status", "pending"),
+    listCustomerTypes(),
+  ]);
+  if (customerResult.error || orderResult.error) {
+    console.error("adminListCustomers:", customerResult.error?.message ?? orderResult.error?.message);
     return [];
   }
 
+  const typesById = new Map(types.map((type) => [type.id, type]));
+  const pendingByCustomer = new Map(
+    (pendingResult.data ?? []).map((request) => [request.customer_id, request.id]),
+  );
   const customerMap = new Map<string, AdminCustomer>();
-  const { data: registered, error: customerError } = await sb.from("customers").select("id,auth_user_id,full_name,email,phone,created_at");
-  if (customerError) throw customerError;
-  for (const c of registered ?? []) customerMap.set(c.id, {
-    id: c.id, full_name: c.full_name ?? "", phone: c.phone ?? "", email: c.email,
-    auth_user_id: c.auth_user_id, kind: "customer", governorate: "", city: "",
-    order_count: 0, total_spent: 0, last_order_at: c.created_at, first_order_at: c.created_at,
-  });
+  for (const customer of customerResult.data ?? []) {
+    customerMap.set(customer.id, {
+      id: customer.id,
+      full_name: customer.full_name || customer.email || customer.phone || "Customer",
+      phone: customer.phone || "",
+      email: customer.email,
+      governorate: "",
+      city: "",
+      order_count: 0,
+      total_spent: 0,
+      last_order_at: customer.created_at,
+      first_order_at: customer.created_at,
+      auth_user_id: customer.auth_user_id,
+      kind: "customer",
+      is_persistent: true,
+      effective_type: typesById.get(customer.customer_type_id) ?? null,
+      pending_request_id: pendingByCustomer.get(customer.id) ?? null,
+    });
+  }
 
-  for (const o of orders ?? []) {
-    const phone = o.customer_phone;
-    const key = o.customer_id ?? ("guest:" + o.id);
+  for (const order of orderResult.data ?? []) {
+    const key = order.customer_id ?? `guest:${order.id}`;
     const existing = customerMap.get(key);
 
     if (existing) {
       existing.order_count += 1;
-      if (o.payment_status === "paid" || o.payment_status === "pending") {
-        existing.total_spent += Number(o.grand_total);
+      if (order.payment_status === "paid" || order.payment_status === "pending") {
+        existing.total_spent += Number(order.grand_total);
       }
-      if (new Date(o.created_at) > new Date(existing.last_order_at)) {
-        existing.last_order_at = o.created_at;
-        existing.governorate = o.governorate;
-        existing.city = o.city;
+      if (existing.order_count === 1 || new Date(order.created_at) > new Date(existing.last_order_at)) {
+        existing.last_order_at = order.created_at;
+        existing.full_name = existing.is_persistent ? existing.full_name : order.customer_name;
+        existing.governorate = order.governorate;
+        existing.city = order.city;
       }
-      if (new Date(o.created_at) < new Date(existing.first_order_at)) {
-        existing.first_order_at = o.created_at;
+      if (existing.order_count === 1 || new Date(order.created_at) < new Date(existing.first_order_at)) {
+        existing.first_order_at = order.created_at;
       }
     } else {
       customerMap.set(key, {
-        id: o.id,
-        kind: "guest",
-        full_name: o.customer_name,
-        phone,
+        id: order.id,
+        full_name: order.customer_name,
+        phone: order.customer_phone,
         email: null,
-        governorate: o.governorate,
-        city: o.city,
+        governorate: order.governorate,
+        city: order.city,
         order_count: 1,
-        total_spent: (o.payment_status === "paid" || o.payment_status === "pending") ? Number(o.grand_total) : 0,
-        last_order_at: o.created_at,
-        first_order_at: o.created_at,
+        total_spent: (order.payment_status === "paid" || order.payment_status === "pending") ? Number(order.grand_total) : 0,
+        last_order_at: order.created_at,
+        first_order_at: order.created_at,
+        auth_user_id: null,
+        kind: "guest",
+        is_persistent: false,
+        effective_type: null,
+        pending_request_id: null,
       });
     }
   }

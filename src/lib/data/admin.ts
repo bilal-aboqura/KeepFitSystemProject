@@ -5,6 +5,7 @@ export interface AdminStats {
   revenueMonth: number;
   activeProducts: number;
   lowStock: number;
+  pendingCustomerTypeRequests: number;
   recentOrders: {
     id: string;
     order_number: string;
@@ -27,7 +28,7 @@ export async function getAdminStats(): Promise<AdminStats | null> {
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  const [today, monthPaid, active, low, recent] = await Promise.all([
+  const [today, monthPaid, active, low, recent, pendingTypes] = await Promise.all([
     supabase
       .from("orders")
       .select("id", { count: "exact", head: true })
@@ -52,6 +53,10 @@ export async function getAdminStats(): Promise<AdminStats | null> {
       )
       .order("created_at", { ascending: false })
       .limit(6),
+    supabase
+      .from("customer_type_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending"),
   ]);
 
   const revenueMonth =
@@ -62,6 +67,7 @@ export async function getAdminStats(): Promise<AdminStats | null> {
     revenueMonth,
     activeProducts: active.count ?? 0,
     lowStock: low.count ?? 0,
+    pendingCustomerTypeRequests: pendingTypes.count ?? 0,
     recentOrders: (recent.data ?? []) as AdminStats["recentOrders"],
   };
 }
