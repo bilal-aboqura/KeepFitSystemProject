@@ -46,11 +46,57 @@ try {
     throw new Error(`Feature 004 preflight failed: ${failures.map((key) => `${key}=${report[key]}`).join(", ")}`);
   }
 
-  const sql = await readFile(new URL("../supabase/migrations/004_pricing_engine.sql", import.meta.url), "utf8");
-  await client.query("begin");
-  await client.query(sql);
-  await client.query("commit");
-  console.log("Feature 004 pricing migration applied after prerequisite validation.");
+  if (process.argv.includes("--preflight")) {
+    console.log("Feature 004 prerequisite preflight passed without writes.");
+    process.exitCode = 0;
+  } else {
+    const sql = await readFile(new URL("../supabase/migrations/004_pricing_engine.sql", import.meta.url), "utf8");
+    await client.query("begin");
+    await client.query("select pg_advisory_xact_lock(hashtextextended('keepfit-feature-004-migration', 0))");
+    await client.query(sql);
+    await client.query(sql);
+
+    const verification = (await client.query(`
+      select
+        to_regclass('public.price_lists') is not null as has_price_lists,
+        to_regclass('public.price_list_items') is not null as has_price_items,
+        to_regclass('public.customer_type_price_list_mappings') is not null as has_type_mappings,
+        to_regclass('public.customer_unit_price_overrides') is not null as has_overrides,
+        to_regprocedure('public.pricing_resolve_targets(uuid,jsonb,timestamp with time zone)') is not null as has_resolver,
+        not has_function_privilege('anon', 'public.pricing_resolve_targets(uuid,jsonb,timestamp with time zone)', 'EXECUTE') as anon_denied,
+        not has_function_privilege('authenticated', 'public.pricing_resolve_targets(uuid,jsonb,timestamp with time zone)', 'EXECUTE') as customer_denied,
+        has_function_privilege('service_role', 'public.pricing_resolve_targets(uuid,jsonb,timestamp with time zone)', 'EXECUTE') as service_allowed,
+        coalesce((
+          select array_to_string(proconfig, ',') like '%search_path=""%'
+          from pg_proc where oid = 'public.pricing_resolve_targets(uuid,jsonb,timestamp with time zone)'::regprocedure
+        ), false) as empty_search_path
+    `)).rows[0];
+    const invalidVerification = Object.entries(verification).filter(([, valid]) => !valid).map(([name]) => name);
+    if (invalidVerification.length) throw new Error(`Feature 004 verification failed: ${invalidVerification.join(", ")}`);
+
+    const resolverCoverage = (await client.query(`
+      select count(*)::int as missing_public_prices
+      from public.product_variants variant
+      join public.variant_packaging_units unit on unit.variant_id = variant.id
+      where variant.is_active and variant.archived_at is null
+        and unit.is_active and unit.archived_at is null and unit.is_sellable
+        and not exists (
+          select 1 from jsonb_array_elements(public.pricing_resolve_targets(
+            null,
+            jsonb_build_array(jsonb_build_object('variantId', variant.id, 'sellableUnitId', unit.id)),
+            transaction_timestamp()
+          )) resolved
+          where resolved->>'availability' = 'priced'
+        )
+    `)).rows[0];
+    if (resolverCoverage.missing_public_prices > 0) {
+      throw new Error(`Feature 004 verification failed: missing_public_prices=${resolverCoverage.missing_public_prices}`);
+    }
+
+    await client.query("commit");
+    console.log(JSON.stringify({ phase: "feature-004-verification", ...verification, ...resolverCoverage }));
+    console.log("Feature 004 pricing migration applied and convergent reapplication verified.");
+  }
 } catch (error) {
   await client.query("rollback").catch(() => undefined);
   throw error;

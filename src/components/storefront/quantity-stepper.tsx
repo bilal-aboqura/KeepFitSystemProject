@@ -5,14 +5,15 @@ interface Props {
   onChange: (next: number) => void;
   min?: number;
   max?: number;
+  step?: number;
 }
 
-export function QuantityStepper({ value, onChange, min = 1, max = 99 }: Props) {
+export function QuantityStepper({ value, onChange, min = 1, max = 99, step = 1 }: Props) {
   return (
     <div className="inline-flex h-11 items-center rounded-xl border border-border">
       <button
         type="button"
-        onClick={() => onChange(Math.max(min, value - 1))}
+        onClick={() => onChange(Math.max(min, value - step))}
         aria-label="Decrease"
         className="flex h-full w-10 items-center justify-center text-fg-dim transition hover:text-fg"
       >
@@ -23,7 +24,7 @@ export function QuantityStepper({ value, onChange, min = 1, max = 99 }: Props) {
       </span>
       <button
         type="button"
-        onClick={() => onChange(Math.min(max, value + 1))}
+        onClick={() => onChange(Math.min(max, value + step))}
         aria-label="Increase"
         className="flex h-full w-10 items-center justify-center text-fg-dim transition hover:text-fg"
       >

@@ -1,36 +1,13 @@
-import { getMylerzConfiguration } from "@/lib/mylerz";
-import { MylerzConnection } from "@/components/admin/mylerz-shipment-panel";
-import { adminListOrders } from "@/lib/data/admin-crud";
-import { getLang } from "@/lib/i18n/server";
-import { OrdersTable } from "@/components/admin/orders-table";
 import { AdminPageHeader } from "@/components/admin/page-header";
-import { BostaOperations } from "@/components/admin/bosta-operations";
-import { getBostaConfiguration } from "@/lib/bosta";
-import { getLatestBostaPickups } from "@/lib/bosta-pickups";
+import { ServerOrdersTable } from "@/components/admin/orders-table";
+import { listAdminOrders } from "@/lib/data/orders";
+import { getLang } from "@/lib/i18n/server";
 
-export default async function AdminOrdersPage() {
-  const lang = await getLang();
+export default async function AdminOrdersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const [lang, raw] = await Promise.all([getLang(), searchParams]);
+  const value = (key: string) => typeof raw[key] === "string" ? raw[key] as string : undefined;
+  const filters = { query: value("query"), fulfillment: value("fulfillment"), payment: value("payment"), customerType: value("customerType"), dateFrom: value("dateFrom"), dateTo: value("dateTo"), cursor: value("cursor") };
+  const data = await listAdminOrders({ ...filters, limit: 25 }).catch(() => ({ orders: [], nextCursor: null }));
   const ar = lang === "ar";
-  const [orders, pickups] = await Promise.all([
-    adminListOrders(),
-    getLatestBostaPickups(),
-  ]);
-  const bostaConfigured = getBostaConfiguration().ready;
-
-  return (
-    <div>
-      <AdminPageHeader
-        eyebrow={ar ? "تنفيذ الطلبات" : "Fulfillment"}
-        title={ar ? "الطلبات" : "Orders"}
-        description={
-          ar
-            ? "ابحث عن الطلبات وتابع الدفع والتجهيز والشحن من مكان واحد."
-            : "Search orders and manage payment, fulfillment, and shipping in one place."
-        }
-      />
-      <BostaOperations configured={bostaConfigured} pickups={pickups} lang={lang} />
-      <MylerzConnection configured={getMylerzConfiguration().ready} lang={lang} />
-      <OrdersTable orders={orders} lang={lang} mylerzConfigured={getMylerzConfiguration().ready} bostaConfigured={bostaConfigured} />
-    </div>
-  );
+  return <div><AdminPageHeader eyebrow={ar ? "تنفيذ الطلبات" : "Fulfillment"} title={ar ? "الطلبات" : "Orders"} description={ar ? "بحث وفلاتر حية مع صفحات من الخادم ولقطات تجارية ثابتة." : "Live server-side search, filters, pagination, and immutable commercial snapshots."}/><ServerOrdersTable orders={data.orders as never[]} nextCursor={data.nextCursor} lang={lang} filters={filters}/></div>;
 }

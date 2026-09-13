@@ -16,7 +16,7 @@ Do not apply Feature 005 until all checks pass:
 - Feature 004: Price Lists/mappings/overrides, exactly one usable public default, batch Variant + Unit resolver, database-callable final-transaction resolver, integer EGP amounts and price snapshots.
 - Every representative active independently sellable Unit resolves a public/default price; no duplicate/invalid conversion target exists.
 
-The current checked-out repository does not yet pass the Feature 003 Sellable Unit and Feature 004 checks. Complete and verify those owning features first. The Feature 005 runner must abort without writes until the physical contracts are present.
+The current checked-out repository passes the Feature 003 Sellable Unit and Feature 004 resolver checks. The Feature 005 runner still aborts without writes whenever any physical prerequisite contract is absent.
 
 ## 3. Migration rehearsal
 
@@ -187,6 +187,19 @@ Rehearse:
 5. parity checks for Orders, totals, consumed quotes, submission links, and provider references.
 
 Never roll back by restoring client-controlled pricing or deleting commerce snapshots/audits/idempotency evidence.
+
+### Rehearsal evidence — 2026-09-13
+
+- No-write prerequisite behavior was observed when Feature 005 refused to start before the Feature 004 database resolver existed; no Feature 005 relations were committed.
+- Feature 004 was then applied convergently and verified with complete public Sellable Unit price coverage.
+- Feature 005 was applied twice inside one advisory-locked transaction and committed only after RLS, service-only functions, empty search paths, and unchanged legacy Order counts passed.
+- The full canonical schema applied inside a transaction and was rolled back, proving dependency ordering and a recoverable post-schema rollback path.
+- Application compatibility keeps legacy Orders (`commerce_snapshot_version is null`) readable while v1 Orders use immutable snapshots; rollback must retain both formats.
+- Backup restore remains an operator-run production exercise and is pending; no destructive restore was performed against this environment.
+
+### External sandbox status — 2026-09-13
+
+Kashier, Bosta, Mylerz, notification/Telegram, Meta, and analytics sandbox acceptance is pending. Automated tests use isolated adapters and no production external action was sent.
 
 ## 14. Closure report
 

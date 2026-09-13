@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { readFile } from "node:fs/promises";
 import type { BostaOrder } from "@/lib/bosta";
 const redirect = vi.hoisted(() => vi.fn((url: string) => { throw new Error(url); }));
 vi.mock("next/navigation", () => ({ redirect }));
@@ -62,4 +63,10 @@ it("analytics remains anonymous and excludes customer/contact data", async () =>
   const { trackStoreEvent } = await import("@/lib/store-analytics");
   trackStoreEvent("initiate_checkout");
   expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ visitorId: "visitor-id", eventType: "initiate_checkout", path: "/checkout" });
+});
+it("keeps notification and purchase effects after commit and suppresses them on replay", async () => {
+  const source = await readFile("src/app/api/orders/route.ts", "utf8");
+  expect(source).toContain("if (!result.replayed)");
+  expect(source).toContain("after(async () =>");
+  expect(source.indexOf("finalizeConfirmedQuote(input)")).toBeLessThan(source.indexOf("after(async () =>"));
 });

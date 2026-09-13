@@ -48,6 +48,25 @@ export interface CatalogPackagingPricingTarget {
   }[];
 }
 
+export interface CatalogSellableUnitTarget {
+  variant_id: string;
+  product_id: string;
+  sellable_unit_id: string;
+  sku: string;
+  product_name_en: string;
+  product_name_ar: string;
+  variant_label_en: string;
+  variant_label_ar: string;
+  unit_code: string | null;
+  unit_label_en: string;
+  unit_label_ar: string;
+  is_active: boolean;
+  is_sellable: boolean;
+  is_default_sale_unit: boolean;
+  stock: number;
+  base_quantity: CatalogRational;
+}
+
 export interface CatalogCategory {
   id: string;
   slug: string;

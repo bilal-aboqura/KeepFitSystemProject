@@ -13,7 +13,7 @@ import type { ProductDetail } from "@/lib/data/catalog";
 import { VariantSelector } from "./variant-selector";
 import { ProductGallery } from "./product-gallery";
 import { SellableUnitSelector } from "./sellable-unit-selector";
-import type { PublicPriceProjection } from "@/lib/pricing/types";
+import type { CommerceSafeLine } from "@/lib/commerce/types";
 
 export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
   const { t, lang } = useLang();
@@ -27,19 +27,20 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
   const initialUnit = sellableUnits.find((unit) => unit.is_default_sale_unit) ?? sellableUnits[0];
   const [selectedUnitId, setSelectedUnitId] = useState(initialUnit?.id ?? "");
   const selectedUnit = sellableUnits.find((unit) => unit.id === selectedUnitId) ?? initialUnit;
-  const [livePrice, setLivePrice] = useState<PublicPriceProjection | null>(null);
+  const [liveOffer, setLiveOffer] = useState<CommerceSafeLine | null>(null);
   const [repriceFailed, setRepriceFailed] = useState(false);
-  const resolvedPrice = livePrice?.variantId === selectedVariant?.id && livePrice.sellableUnitId === selectedUnit?.id
-    ? livePrice
-    : selectedUnit?.resolved_price ?? null;
-  const priceUnavailable = resolvedPrice?.availability !== "priced";
+  const resolvedPrice = selectedUnit?.resolved_price ?? null;
+  const currentOffer = liveOffer?.variantId === selectedVariant?.id && liveOffer.sellableUnitId === selectedUnit?.id ? liveOffer : null;
+  const priceUnavailable = !currentOffer && resolvedPrice?.availability !== "priced";
   const out = !selectedVariant || !selectedUnit || selectedVariant.stock <= 0 || !selectedVariant.is_active || priceUnavailable;
   const ar = lang === "ar";
 
   const name = ar ? product.name_ar : product.name_en;
   const desc = ar ? product.long_desc_ar : product.long_desc_en;
   const image = selectedVariant?.media[0]?.public_url ?? product.images?.[0] ?? "/keepfit-logo.png";
-  const price = resolvedPrice?.availability === "priced" ? Number(resolvedPrice.displayAmount) : 0;
+  const price = currentOffer ? Number(currentOffer.unitAmountMinor) / 100 : resolvedPrice?.availability === "priced" ? Number(resolvedPrice.displayAmount) : 0;
+  const quantityMinimum = currentOffer?.quantityRule.minimum ?? 1;
+  const quantityIncrement = currentOffer?.quantityRule.increment ?? 1;
   const compareAtPrice = Number.NaN;
   const hasSale = Number.isFinite(compareAtPrice) && compareAtPrice > price;
   const savings = hasSale ? compareAtPrice - price : 0;
@@ -57,16 +58,17 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
   useEffect(() => {
     if (!selectedVariant || !selectedUnit) return;
     const controller = new AbortController();
-    fetch("/api/pricing/reprice", {
+    fetch("/api/commerce/cart-quote", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ items: [{ variant_id: selectedVariant.id, sellable_unit_id: selectedUnit.id, quantity: 1 }] }),
+      body: JSON.stringify({ lines: [{ variantId: selectedVariant.id, sellableUnitId: selectedUnit.id, quantity: 1 }] }),
       signal: controller.signal,
     }).then(async (response) => {
       const body = await response.json();
-      const next = body.items?.[0] as PublicPriceProjection | undefined;
+      const next = body.lines?.[0] as CommerceSafeLine | undefined;
       if (!next) throw new Error("Missing price result");
-      setLivePrice(next);
+      setLiveOffer(next);
+      setQty((current) => current < next.quantityRule.minimum || (current - next.quantityRule.minimum) % next.quantityRule.increment !== 0 ? next.quantityRule.minimum : current);
       setRepriceFailed(false);
     }).catch((error) => {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -139,12 +141,14 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
           const units = variant.packaging_units.filter((unit) => unit.is_active && unit.is_sellable);
           setSelectedId(variant.id);
           setSelectedUnitId((units.find((unit) => unit.is_default_sale_unit) ?? units[0])?.id ?? "");
-          setLivePrice(null);
+          setLiveOffer(null);
           setRepriceFailed(false);
           setQty(1);
         }} />
 
-        <SellableUnitSelector units={selectedVariant?.packaging_units ?? []} selectedId={selectedUnit?.id ?? ""} onChange={(unit) => { setSelectedUnitId(unit.id); setLivePrice(null); setRepriceFailed(false); setQty(1); }} lang={lang} />
+        <SellableUnitSelector units={selectedVariant?.packaging_units ?? []} selectedId={selectedUnit?.id ?? ""} onChange={(unit) => { setSelectedUnitId(unit.id); setLiveOffer(null); setRepriceFailed(false); setQty(1); }} lang={lang} />
+
+        {currentOffer && <p className="mt-3 text-sm text-fg-muted">{ar ? `الحد الأدنى ${quantityMinimum}، والزيادة ${quantityIncrement}` : `Minimum ${quantityMinimum}, in increments of ${quantityIncrement}`}</p>}
 
         {selectedVariant?.sku && <p className="mt-3 text-xs text-fg-dim">SKU: {selectedVariant.sku}</p>}
 
@@ -157,7 +161,7 @@ export function ProductPurchaseBox({ product }: { product: ProductDetail }) {
 
         {/* Actions */}
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <QuantityStepper value={qty} onChange={setQty} max={Math.max(1, selectedVariant?.stock ?? 0)} />
+          <QuantityStepper value={qty} onChange={setQty} min={quantityMinimum} step={quantityIncrement} max={Math.max(quantityMinimum, selectedVariant?.stock ?? 0)} />
           <button onClick={handleAdd} disabled={out} className="btn btn-primary gap-2">
             {addButtonContent}
           </button>

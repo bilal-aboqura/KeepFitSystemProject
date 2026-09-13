@@ -5,8 +5,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { ShoppingBag, Trash2, ArrowRight, Minus, Plus, Truck, CheckCircle } from "lucide-react";
 import { useLang } from "@/components/language/provider";
-import { useCart, updateQuantity, removeFromCart, clearCart, repriceCart } from "@/lib/cart";
-import { calcItemsSubtotal } from "@/lib/pricing/legacy-adjustments";
+import { useCart, updateQuantity, removeFromCart, clearCart } from "@/lib/cart";
+import { CartQuoteNotice, useCommerceCartQuote } from "@/components/storefront/cart-quote";
 import { formatPrice } from "@/lib/utils";
 import { trackMetaEvent } from "@/lib/meta-pixel";
 import { trackStoreEvent } from "@/lib/store-analytics";
@@ -17,8 +17,8 @@ export default function CartPage() {
   const { t, lang } = useLang();
   const items = useCart();
   const [freeShippingThreshold, setFreeShippingThreshold] = useState(FREE_SHIPPING_THRESHOLD);
-  const [repriceState, setRepriceState] = useState<"ready" | "changed" | "error">("ready");
-  const subtotal = calcItemsSubtotal(items);
+  const { quote, loading: quoteLoading, error: quoteError, retry: retryQuote } = useCommerceCartQuote(items);
+  const subtotal = quote ? Number(quote.subtotalMinor) / 100 : 0;
   const ar = lang === "ar";
   const freeShipping = subtotal >= freeShippingThreshold;
   const remaining = Math.max(freeShippingThreshold - subtotal, 0);
@@ -36,11 +36,8 @@ export default function CartPage() {
       .catch(() => {});
   }, []);
 
-  const cartIdentity = items.map((item) => `${item.variant_id}:${item.sellable_unit_id}:${item.quantity}`).join("|");
-  useEffect(() => {
-    if (!items.length) return;
-    repriceCart(items).then((changed) => setRepriceState(changed ? "changed" : "ready")).catch(() => setRepriceState("error"));
-  }, [cartIdentity, items]);
+  const quoteLines = new Map(quote?.lines.map((line) => [`${line.variantId}:${line.sellableUnitId}`, line]) ?? []);
+  const checkoutBlocked = quoteLoading || !quote || quote.validationState !== "valid";
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-12">
@@ -62,8 +59,7 @@ export default function CartPage() {
       ) : (
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
           <div className="flex flex-col gap-3">
-            {repriceState === "changed" && <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{t.cart.priceChanged}</p>}
-            {repriceState === "error" && <p className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{t.cart.repriceRetry}</p>}
+            <CartQuoteNotice loading={quoteLoading} error={quoteError} onRetry={retryQuote} />
             {/* Free shipping progress bar */}
             <div className="glass p-4">
               <div className="flex items-center gap-2 text-sm">
@@ -90,6 +86,10 @@ export default function CartPage() {
 
             {items.map((item) => {
               const name = ar ? item.name_ar : item.name_en;
+              const current = quoteLines.get(`${item.variant_id}:${item.sellable_unit_id}`);
+              const currentPrice = current ? Number(current.unitAmountMinor) / 100 : null;
+              const minimum = current?.quantityRule.minimum ?? 1;
+              const increment = current?.quantityRule.increment ?? 1;
               return (
                 <div key={item.id} className="glass flex items-center gap-4 p-4">
                   <Link href={`/product/${item.slug}`} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-white">
@@ -101,20 +101,20 @@ export default function CartPage() {
                     </Link>
                     {(item.unit_label_en || item.variant_label_en) && <p className="mt-1 text-xs text-fg-dim">{[ar ? item.variant_label_ar : item.variant_label_en, ar ? item.unit_label_ar : item.unit_label_en].filter(Boolean).join(" · ")}</p>}
                     <p className="mt-1 text-sm font-semibold text-brand">
-                      {item.price_status === "unavailable" ? t.product.pricing.unavailable : formatPrice(item.price, lang)}
+                      {currentPrice === null ? t.product.pricing.unavailable : formatPrice(currentPrice, lang)}
                     </p>
                   </div>
                   <div className="flex items-center rounded-xl border border-border">
-                    <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="flex h-9 w-9 items-center justify-center text-fg-dim hover:text-fg">
+                    <button onClick={() => updateQuantity(item.id, Math.max(minimum, item.quantity - increment))} className="flex h-9 w-9 items-center justify-center text-fg-dim hover:text-fg">
                       <Minus size={14} />
                     </button>
                     <span className="w-7 text-center text-sm font-semibold tabular-nums text-fg">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="flex h-9 w-9 items-center justify-center text-fg-dim hover:text-fg">
+                    <button onClick={() => updateQuantity(item.id, item.quantity + increment)} className="flex h-9 w-9 items-center justify-center text-fg-dim hover:text-fg">
                       <Plus size={14} />
                     </button>
                   </div>
                   <div className="hidden w-24 text-right text-sm font-semibold text-fg sm:block">
-                    {formatPrice(item.price * item.quantity, lang)}
+                    {current ? formatPrice(Number(current.lineAmountMinor) / 100, lang) : "—"}
                   </div>
                   <button onClick={() => removeFromCart(item.id)} aria-label="Remove" className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-dim transition hover:bg-brand/10 hover:text-brand">
                     <Trash2 size={16} />
@@ -152,7 +152,7 @@ export default function CartPage() {
             </div>
             <Link
               href="/checkout"
-              aria-disabled={items.some((item) => item.price_status === "unavailable") || repriceState === "error"}
+              aria-disabled={checkoutBlocked}
               onClick={() => {
                 trackMetaEvent("InitiateCheckout", {
                   value: subtotal,
@@ -167,7 +167,7 @@ export default function CartPage() {
                 });
                 trackStoreEvent("initiate_checkout");
               }}
-              className={`btn btn-primary mt-6 w-full gap-2 ${items.some((item) => item.price_status === "unavailable") || repriceState === "error" ? "pointer-events-none opacity-50" : ""}`}
+              className={`btn btn-primary mt-6 w-full gap-2 ${checkoutBlocked ? "pointer-events-none opacity-50" : ""}`}
             >
               {t.cart.checkout}
               <ArrowRight size={16} />

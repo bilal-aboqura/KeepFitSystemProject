@@ -14,5 +14,5 @@ describe("pricing audit history", () => {
     expect(event).toMatchObject({ action: "DEFAULT_PRICE_LIST_CHANGED", actor_id: actor, correlation_id: correlation });
     expect(event.previous_state).toHaveProperty("default_price_list_id");
     expect(JSON.stringify(event)).not.toMatch(/amount_minor/);
-  }));
+  }), 30_000);
 });

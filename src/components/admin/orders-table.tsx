@@ -11,6 +11,32 @@ import { formatPrice, cn } from "@/lib/utils";
 import { useToast } from "@/components/admin/toast";
 import type { AdminOrder } from "@/lib/data/admin-crud";
 import { getBostaStateMeta } from "@/lib/bosta-status";
+import { adminStatusLabel, StatusBadge } from "@/components/admin/status-badge";
+
+interface ServerOrderRow {
+  id: string; order_number: string; customer_id: string | null; customer_name: string; customer_phone: string;
+  governorate: string; city: string; grand_total: number; payment_method: string; payment_status: string;
+  fulfillment_status: string; customer_type_code_snapshot: string | null; commerce_snapshot_version: number | null;
+  shipping_snapshot: Record<string, unknown> | null; created_at: string;
+}
+
+export function ServerOrdersTable({ orders, nextCursor, lang, filters }: { orders: ServerOrderRow[]; nextCursor: string | null; lang: "en" | "ar"; filters: Record<string, string | undefined> }) {
+  const ar = lang === "ar";
+  const params = new URLSearchParams(Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])));
+  return <section className="mt-6 overflow-hidden rounded-2xl border border-border bg-white">
+    <form method="get" className="grid gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+      <input name="query" defaultValue={filters.query} placeholder={ar ? "رقم، اسم، هاتف أو SKU" : "Number, name, phone or SKU"} className="input"/>
+      <select name="fulfillment" defaultValue={filters.fulfillment ?? ""} className="input"><option value="">{ar ? "كل حالات التنفيذ" : "All fulfillment"}</option>{FULFILLMENT_OPTIONS.map((value) => <option key={value} value={value}>{adminStatusLabel(value, lang)}</option>)}</select>
+      <select name="payment" defaultValue={filters.payment ?? ""} className="input"><option value="">{ar ? "كل حالات الدفع" : "All payment"}</option>{PAYMENT_OPTIONS.map((value) => <option key={value} value={value}>{adminStatusLabel(value, lang)}</option>)}</select>
+      <select name="customerType" defaultValue={filters.customerType ?? ""} className="input"><option value="">{ar ? "كل أنواع العملاء" : "All customer types"}</option><option value="guest">{ar ? "زائر" : "Guest"}</option><option value="retail">Retail</option><option value="wholesale">Wholesale</option><option value="gym_owner">Gym</option></select>
+      <input type="date" name="dateFrom" defaultValue={filters.dateFrom} aria-label={ar ? "من تاريخ" : "From date"} className="input"/>
+      <input type="date" name="dateTo" defaultValue={filters.dateTo} aria-label={ar ? "إلى تاريخ" : "To date"} className="input"/>
+      <button className="btn btn-primary">{ar ? "تطبيق" : "Apply"}</button>
+    </form>
+    {orders.length === 0 ? <p className="p-10 text-center text-fg-dim">{ar ? "لا توجد طلبات مطابقة." : "No matching orders."}</p> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left text-fg-dim"><th className="p-3">#</th><th className="p-3">{ar ? "العميل" : "Customer"}</th><th className="p-3">{ar ? "السياق" : "Context"}</th><th className="p-3">{ar ? "الشحن" : "Shipping"}</th><th className="p-3">{ar ? "الدفع" : "Payment"}</th><th className="p-3">{ar ? "التنفيذ" : "Fulfillment"}</th><th className="p-3">{ar ? "الإجمالي" : "Total"}</th></tr></thead><tbody>{orders.map((order) => <tr key={order.id} className="border-t border-border"><td className="p-3"><Link className="font-mono text-brand underline" href={`/admin/orders/${order.id}`}>{order.order_number}</Link></td><td className="p-3"><span className="font-medium">{order.customer_name}</span><span className="block text-xs text-fg-dim" dir="ltr">{order.customer_phone}</span></td><td className="p-3">{order.customer_id ? order.customer_type_code_snapshot ?? "legacy" : (ar ? "زائر" : "Guest")}</td><td className="p-3">{String(order.shipping_snapshot?.policy ?? (ar ? "قديم" : "legacy"))}</td><td className="p-3"><span className="flex flex-wrap items-center gap-1"><StatusBadge value={order.payment_status} lang={lang}/><span>· {adminStatusLabel(order.payment_method, lang)}</span></span></td><td className="p-3"><StatusBadge value={order.fulfillment_status} lang={lang}/></td><td className="p-3 font-semibold text-brand">{formatPrice(Number(order.grand_total), lang)}</td></tr>)}</tbody></table></div>}
+    {nextCursor && <div className="border-t border-border p-4 text-center"><Link href={`/admin/orders?${new URLSearchParams({ ...Object.fromEntries(params), cursor: nextCursor }).toString()}`} className="btn btn-secondary">{ar ? "الصفحة التالية" : "Next page"}</Link></div>}
+  </section>;
+}
 
 const PAYMENT_OPTIONS = ["pending", "paid", "failed", "refunded"] as const;
 const FULFILLMENT_OPTIONS = [

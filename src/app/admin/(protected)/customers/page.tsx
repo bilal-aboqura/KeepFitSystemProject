@@ -73,7 +73,7 @@ export default async function AdminCustomersPage() {
                 </tr>
               ) : (
                 customers.map((customer) => (
-                  <tr key={`${customer.kind}:${customer.id}`} className="border-b border-border/80 transition hover:bg-slate-50">
+                  <tr id={`customer-${customer.id}`} key={`${customer.kind}:${customer.id}`} className="scroll-mt-24 border-b border-border/80 transition hover:bg-slate-50 target:bg-amber-50">
                     <td className="px-5 py-4 sm:px-6">
                       <div className="font-medium text-fg">{customer.full_name}</div>
                       <p className="mt-1 text-xs">{customer.kind === "customer" ? (ar ? "حساب عميل" : "Customer record") : (ar ? "بيانات طلب زائر" : "Guest order snapshot")}</p>

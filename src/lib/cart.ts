@@ -3,6 +3,8 @@
 import { useSyncExternalStore } from "react";
 
 export interface CartItem {
+  intent_version?: 2;
+  intent_status?: "ready" | "legacy_selection_required" | "unavailable";
   id: string;
   variant_id?: string;
   sellable_unit_id?: string;
@@ -35,12 +37,7 @@ export const CART_ITEM_ADDED_EVENT = "cart:item-added";
 // ── Store: keeps localStorage as the source of truth ────────────────────────
 function readAll(): CartItem[] {
   if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as CartItem[]) : [];
-  } catch {
-    return [];
-  }
+  return parseCartStorage(localStorage.getItem(KEY));
 }
 
 function commit(items: CartItem[]) {
@@ -59,7 +56,7 @@ function getSnapshot(): CartItem[] {
   if (raw !== lastRaw) {
     lastRaw = raw;
     try {
-      lastItems = raw ? (JSON.parse(raw) as CartItem[]) : [];
+      lastItems = parseCartStorage(raw);
     } catch {
       lastItems = [];
     }
@@ -97,18 +94,65 @@ export function addToCart(
   options: { showPrompt?: boolean } = {},
 ): void {
   const items = readAll();
-  const existing = items.find((i) => i.id === item.id);
+  const identity = item.variant_id && item.sellable_unit_id
+    ? `${item.variant_id}:${item.sellable_unit_id}`
+    : item.id;
+  const existing = items.find((candidate) => {
+    const candidateIdentity = candidate.variant_id && candidate.sellable_unit_id
+      ? `${candidate.variant_id}:${candidate.sellable_unit_id}`
+      : candidate.id;
+    return candidateIdentity === identity;
+  });
   const cap = item.stock ?? 99;
   if (cap <= 0 || quantity <= 0) return;
   const previousQuantity = existing?.quantity ?? 0;
   if (existing) {
-    existing.quantity = Math.min((existing.quantity || 0) + quantity, cap);
+    const merged = checkedCartQuantity((existing.quantity || 0), quantity);
+    existing.quantity = Math.min(merged, cap);
   } else {
-    items.push({ ...item, quantity: Math.min(quantity, cap) });
+    items.push({ ...item, id: identity, intent_version: 2, intent_status: item.variant_id && item.sellable_unit_id ? "ready" : "legacy_selection_required", quantity: Math.min(quantity, cap) });
   }
   commit(items);
   if (Math.min(previousQuantity + quantity, cap) > previousQuantity && options.showPrompt !== false && typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(CART_ITEM_ADDED_EVENT));
+  }
+}
+
+function checkedCartQuantity(current: number, added: number) {
+  if (!Number.isSafeInteger(current) || !Number.isSafeInteger(added) || current < 0 || added <= 0) {
+    throw new RangeError("Cart quantity is outside the supported range.");
+  }
+  const next = current + added;
+  if (!Number.isSafeInteger(next)) throw new RangeError("Cart quantity is outside the supported range.");
+  return next;
+}
+
+export function mergeCartIntent(items: CartItem[], item: CartItem): CartItem[] {
+  const copy = items.map((candidate) => ({ ...candidate }));
+  const identity = item.variant_id && item.sellable_unit_id ? `${item.variant_id}:${item.sellable_unit_id}` : item.id;
+  const existing = copy.find((candidate) => {
+    const candidateIdentity = candidate.variant_id && candidate.sellable_unit_id ? `${candidate.variant_id}:${candidate.sellable_unit_id}` : candidate.id;
+    return candidateIdentity === identity;
+  });
+  if (existing) existing.quantity = checkedCartQuantity(existing.quantity, item.quantity);
+  else copy.push({ ...item, id: identity, intent_version: 2, intent_status: item.variant_id && item.sellable_unit_id ? "ready" : "legacy_selection_required" });
+  return copy;
+}
+
+export function parseCartStorage(raw: string | null | undefined): CartItem[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((value) => {
+      if (!value || typeof value !== "object") return [];
+      const item = value as Partial<CartItem>;
+      if (typeof item.id !== "string" || typeof item.slug !== "string" || typeof item.name_en !== "string" || typeof item.name_ar !== "string" || typeof item.image !== "string" || typeof item.price !== "number" || !Number.isSafeInteger(item.quantity) || item.quantity! <= 0) return [];
+      const canonical = typeof item.variant_id === "string" && typeof item.sellable_unit_id === "string";
+      return [{ ...item, intent_version: canonical ? 2 as const : item.intent_version, intent_status: item.intent_status ?? (canonical ? "ready" as const : "legacy_selection_required" as const) } as CartItem];
+    });
+  } catch {
+    return [];
   }
 }
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { sendCancelledOrderToMeta } from "@/lib/meta-conversions";
+import { listAdminOrders } from "@/lib/data/orders";
 
 const Schema = z.object({
   id: z.string().uuid(),
@@ -12,6 +13,17 @@ const Schema = z.object({
     .enum(["pending", "processing", "shipped", "delivered", "cancelled", "returned"])
     .optional(),
 });
+
+const QuerySchema = z.object({ cursor: z.string().datetime().optional(), query: z.string().trim().max(120).optional(), fulfillment: z.enum(["pending","processing","shipped","delivered","cancelled","returned"]).optional(), payment: z.enum(["pending","paid","failed","refunded"]).optional(), customerType: z.string().trim().max(80).optional(), dateFrom: z.string().datetime().optional(), dateTo: z.string().datetime().optional(), limit: z.coerce.number().int().min(1).max(100).optional() });
+
+export async function GET(request: Request) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+  const parsed = QuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+  if (!parsed.success) return NextResponse.json({ error: "Invalid filters" }, { status: 422 });
+  try { return NextResponse.json(await listAdminOrders(parsed.data)); }
+  catch { return NextResponse.json({ error: "Orders unavailable" }, { status: 503 }); }
+}
 
 export async function PUT(request: NextRequest) {
   const denied = await requireAdmin();

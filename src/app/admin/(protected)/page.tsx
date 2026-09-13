@@ -6,6 +6,7 @@ import { formatPrice } from "@/lib/utils";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { AdminSectionCard } from "@/components/admin/section-card";
 import { AdminStatCard } from "@/components/admin/stat-card";
+import { OperationalAttention } from "@/components/admin/operational-attention";
 
 export default async function AdminDashboardPage() {
   const t = await getT();
@@ -97,6 +98,8 @@ export default async function AdminDashboardPage() {
           );
         })}
       </div>
+
+      {stats && <OperationalAttention pendingApprovals={stats.pendingCustomerTypeRequests} pendingOrders={stats.pendingFulfillmentOrders} blockers={stats.commerceBlockers} lang={lang} />}
 
       <Link
         href="/admin/customer-type-requests"

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 import { catalogVariantInputSchema, skuSchema } from "./validation";
 import { CatalogError, catalogDatabaseError } from "./errors";
+import { catalogSellableUnitColumns, mapCatalogSellableUnitRow } from "./queries";
+import type { CatalogSellableUnitTarget } from "./types";
 
 const safeVariantUpdateSchema = z.object({
   sku: skuSchema.optional(),
@@ -56,4 +58,53 @@ export async function resolvePurchasableVariants(ids: string[]) {
     .in("id", ids).eq("is_active", true).is("archived_at", null).eq("product.is_active", true).is("product.archived_at", null);
   if (error) throw catalogDatabaseError(error);
   return data ?? [];
+}
+
+export async function resolvePurchasableSellableUnits(
+  targets: { variantId: string; sellableUnitId: string }[],
+): Promise<Map<string, CatalogSellableUnitTarget>> {
+  const result = new Map<string, CatalogSellableUnitTarget>();
+  const uniqueTargets = [...new Map(targets.map((target) => [`${target.variantId}:${target.sellableUnitId}`, target])).values()];
+  if (uniqueTargets.length === 0) return result;
+  const db = getSupabaseServiceClient();
+  if (!db) return result;
+
+  const variantIds = [...new Set(uniqueTargets.map((target) => target.variantId))];
+  const [{ data: variants, error: variantError }, { data: units, error: unitError }] = await Promise.all([
+    db.from("product_variants")
+      .select("id,product_id,sku,label_en,label_ar,stock,is_active,archived_at,product:products!inner(id,name_en,name_ar,is_active,archived_at)")
+      .in("id", variantIds),
+    db.from("variant_packaging_units")
+      .select(catalogSellableUnitColumns)
+      .in("variant_id", variantIds),
+  ]);
+  if (variantError) throw catalogDatabaseError(variantError);
+  if (unitError) throw catalogDatabaseError(unitError);
+
+  const unitsByKey = new Map(
+    (units ?? []).map((row) => {
+      const unit = mapCatalogSellableUnitRow(row as unknown as Record<string, unknown>);
+      return [`${unit.variant_id}:${unit.sellable_unit_id}`, unit] as const;
+    }),
+  );
+  for (const variant of variants ?? []) {
+    const product = Array.isArray(variant.product) ? variant.product[0] : variant.product;
+    for (const target of uniqueTargets.filter((item) => item.variantId === variant.id)) {
+      const unit = unitsByKey.get(`${target.variantId}:${target.sellableUnitId}`);
+      if (!unit) continue;
+      result.set(`${target.variantId}:${target.sellableUnitId}`, {
+        ...unit,
+        product_id: String(variant.product_id),
+        sku: String(variant.sku),
+        product_name_en: String(product?.name_en ?? ""),
+        product_name_ar: String(product?.name_ar ?? ""),
+        variant_label_en: String(variant.label_en ?? ""),
+        variant_label_ar: String(variant.label_ar ?? ""),
+        stock: Number(variant.stock),
+        is_active: Boolean(variant.is_active) && !variant.archived_at
+          && Boolean(product?.is_active) && !product?.archived_at && unit.is_active,
+      });
+    }
+  }
+  return result;
 }

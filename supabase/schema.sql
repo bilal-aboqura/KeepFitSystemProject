@@ -434,439 +434,7 @@ revoke all on public.bosta_pickups from anon, authenticated;
 grant all on public.bosta_pickups to service_role;
 
 notify pgrst, 'reload schema';
-\n+-- =====================================================================
--- Feature 004: Authoritative Pricing Engine
--- =====================================================================
--- Feature 004: server-authoritative Variant and Sellable Unit pricing.
 
-create extension if not exists "pgcrypto";
-create extension if not exists "btree_gist";
-
-create table if not exists public.price_lists (
-  id uuid primary key default gen_random_uuid(),
-  code text not null unique check (code ~ '^[a-z][a-z0-9-]*$'),
-  name_en text not null check (length(btrim(name_en)) between 1 and 160),
-  name_ar text not null check (length(btrim(name_ar)) between 1 and 160),
-  currency text not null default 'EGP' check (currency = 'EGP'),
-  is_active boolean not null default true,
-  archived_at timestamptz,
-  created_by uuid references auth.users(id) on delete set null,
-  updated_by uuid references auth.users(id) on delete set null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  check (not is_active or archived_at is null)
-);
-
-create table if not exists public.pricing_configuration (
-  singleton boolean primary key default true check (singleton),
-  default_price_list_id uuid not null references public.price_lists(id) on delete restrict,
-  version bigint not null default 1 check (version > 0),
-  updated_by uuid references auth.users(id) on delete set null,
-  updated_at timestamptz not null default now()
-);
-
-create table if not exists public.price_list_items (
-  id uuid primary key default gen_random_uuid(),
-  price_list_id uuid not null references public.price_lists(id) on delete restrict,
-  variant_id uuid not null references public.product_variants(id) on delete restrict,
-  sellable_unit_id uuid not null,
-  amount_minor bigint not null check (amount_minor > 0 and amount_minor <= 999999999999),
-  currency text not null default 'EGP' check (currency = 'EGP'),
-  valid_from timestamptz,
-  valid_until timestamptz,
-  is_active boolean not null default true,
-  archived_at timestamptz,
-  created_by uuid references auth.users(id) on delete set null,
-  updated_by uuid references auth.users(id) on delete set null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  foreign key (sellable_unit_id, variant_id)
-    references public.variant_packaging_units(id, variant_id) on delete restrict,
-  check (valid_until is null or valid_from is null or valid_until > valid_from),
-  check (not is_active or archived_at is null),
-  constraint price_list_items_no_effective_overlap exclude using gist (
-    price_list_id with =,
-    variant_id with =,
-    sellable_unit_id with =,
-    tstzrange(coalesce(valid_from, '-infinity'::timestamptz), coalesce(valid_until, 'infinity'::timestamptz), '[)') with &&
-  ) where (is_active and archived_at is null)
-);
-
-create table if not exists public.customer_type_price_list_mappings (
-  id uuid primary key default gen_random_uuid(),
-  customer_type_id uuid not null references public.customer_types(id) on delete restrict,
-  price_list_id uuid not null references public.price_lists(id) on delete restrict,
-  is_active boolean not null default true,
-  archived_at timestamptz,
-  created_by uuid references auth.users(id) on delete set null,
-  updated_by uuid references auth.users(id) on delete set null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  check (not is_active or archived_at is null)
-);
-create unique index if not exists customer_type_price_list_one_active_idx
-  on public.customer_type_price_list_mappings(customer_type_id)
-  where is_active and archived_at is null;
-
-alter table public.customers add column if not exists direct_price_list_id uuid references public.price_lists(id) on delete restrict;
-
-create table if not exists public.customer_price_list_assignment_audit (
-  id uuid primary key default gen_random_uuid(),
-  customer_id uuid not null references public.customers(id) on delete restrict,
-  previous_price_list_id uuid references public.price_lists(id) on delete restrict,
-  new_price_list_id uuid references public.price_lists(id) on delete restrict,
-  actor_id uuid references auth.users(id) on delete set null,
-  reason text,
-  correlation_id uuid not null default gen_random_uuid(),
-  occurred_at timestamptz not null default now()
-);
-
-create table if not exists public.customer_unit_price_overrides (
-  id uuid primary key default gen_random_uuid(),
-  customer_id uuid not null references public.customers(id) on delete restrict,
-  variant_id uuid not null references public.product_variants(id) on delete restrict,
-  sellable_unit_id uuid not null,
-  amount_minor bigint not null check (amount_minor > 0 and amount_minor <= 999999999999),
-  currency text not null default 'EGP' check (currency = 'EGP'),
-  valid_from timestamptz,
-  valid_until timestamptz,
-  is_active boolean not null default true,
-  archived_at timestamptz,
-  reason text not null check (length(btrim(reason)) between 1 and 1000),
-  created_by uuid references auth.users(id) on delete set null,
-  updated_by uuid references auth.users(id) on delete set null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  foreign key (sellable_unit_id, variant_id)
-    references public.variant_packaging_units(id, variant_id) on delete restrict,
-  check (valid_until is null or valid_from is null or valid_until > valid_from),
-  check (not is_active or archived_at is null),
-  constraint customer_unit_overrides_no_effective_overlap exclude using gist (
-    customer_id with =,
-    variant_id with =,
-    sellable_unit_id with =,
-    tstzrange(coalesce(valid_from, '-infinity'::timestamptz), coalesce(valid_until, 'infinity'::timestamptz), '[)') with &&
-  ) where (is_active and archived_at is null)
-);
-
-create table if not exists public.pricing_audit_events (
-  id uuid primary key default gen_random_uuid(),
-  action text not null,
-  actor_id uuid references auth.users(id) on delete set null,
-  entity_type text not null,
-  entity_id uuid,
-  customer_id uuid references public.customers(id) on delete set null,
-  variant_id uuid references public.product_variants(id) on delete set null,
-  sellable_unit_id uuid references public.variant_packaging_units(id) on delete set null,
-  correlation_id uuid not null default gen_random_uuid(),
-  previous_state jsonb,
-  new_state jsonb,
-  reason text,
-  context jsonb not null default '{}'::jsonb,
-  occurred_at timestamptz not null default now()
-);
-
-alter table public.orders add column if not exists items_total_minor bigint;
-alter table public.orders add column if not exists shipping_cost_minor bigint;
-alter table public.orders add column if not exists discount_minor bigint;
-alter table public.orders add column if not exists grand_total_minor bigint;
-alter table public.orders add column if not exists price_currency text;
-alter table public.order_items add column if not exists unit_price_minor bigint;
-alter table public.order_items add column if not exists line_total_minor bigint;
-alter table public.order_items add column if not exists price_currency text;
-alter table public.order_items add column if not exists pricing_source text;
-alter table public.order_items add column if not exists pricing_reference_id uuid;
-alter table public.order_items add column if not exists price_is_derived boolean;
-alter table public.order_items add column if not exists derived_from_sellable_unit_id uuid references public.variant_packaging_units(id) on delete set null;
-do $$ begin
-  if not exists (select 1 from pg_constraint where conrelid = 'public.order_items'::regclass and conname = 'order_items_pricing_snapshot_integrity') then
-    alter table public.order_items add constraint order_items_pricing_snapshot_integrity check (
-      (unit_price_minor is null and line_total_minor is null and price_currency is null and pricing_source is null and price_is_derived is null)
-      or
-      (unit_price_minor >= 0 and line_total_minor = unit_price_minor * quantity and price_currency = 'EGP'
-        and pricing_source in ('customer_override','direct_price_list','customer_type_price_list','default_price_list')
-        and pricing_reference_id is not null and price_is_derived is not null)
-    ) not valid;
-  end if;
-end $$;
-
-create index if not exists price_list_items_resolution_idx
-  on public.price_list_items(price_list_id, variant_id, sellable_unit_id, valid_from, valid_until)
-  where is_active and archived_at is null;
-create index if not exists customer_unit_overrides_resolution_idx
-  on public.customer_unit_price_overrides(customer_id, variant_id, sellable_unit_id, valid_from, valid_until)
-  where is_active and archived_at is null;
-create index if not exists customer_type_price_list_mapping_lookup_idx
-  on public.customer_type_price_list_mappings(customer_type_id, price_list_id)
-  where is_active and archived_at is null;
-create index if not exists pricing_audit_events_history_idx
-  on public.pricing_audit_events(occurred_at desc, action);
-create index if not exists pricing_audit_events_customer_idx
-  on public.pricing_audit_events(customer_id, occurred_at desc) where customer_id is not null;
-
-create or replace function public.pricing_touch_updated_at()
-returns trigger language plpgsql set search_path = '' as $$
-begin
-  new.updated_at = now();
-  return new;
-end
-$$;
-
-drop trigger if exists price_lists_touch on public.price_lists;
-create trigger price_lists_touch before update on public.price_lists
-  for each row execute function public.pricing_touch_updated_at();
-drop trigger if exists price_list_items_touch on public.price_list_items;
-create trigger price_list_items_touch before update on public.price_list_items
-  for each row execute function public.pricing_touch_updated_at();
-drop trigger if exists customer_type_price_list_mappings_touch on public.customer_type_price_list_mappings;
-create trigger customer_type_price_list_mappings_touch before update on public.customer_type_price_list_mappings
-  for each row execute function public.pricing_touch_updated_at();
-drop trigger if exists customer_unit_price_overrides_touch on public.customer_unit_price_overrides;
-create trigger customer_unit_price_overrides_touch before update on public.customer_unit_price_overrides
-  for each row execute function public.pricing_touch_updated_at();
-
-create or replace function public.pricing_protect_default_list()
-returns trigger language plpgsql set search_path = '' as $$
-begin
-  if (not new.is_active or new.archived_at is not null)
-    and exists (select 1 from public.pricing_configuration where default_price_list_id = old.id)
-  then
-    raise exception using errcode = '23514', message = 'DEFAULT_PRICE_LIST_INVALID';
-  end if;
-  return new;
-end
-$$;
-drop trigger if exists price_lists_protect_default on public.price_lists;
-create trigger price_lists_protect_default before update on public.price_lists
-  for each row execute function public.pricing_protect_default_list();
-
-insert into public.price_lists(code, name_en, name_ar, currency, is_active)
-values ('public-default', 'Public default', 'السعر الافتراضي', 'EGP', true)
-on conflict (code) do nothing;
-
-insert into public.pricing_configuration(singleton, default_price_list_id)
-select true, id from public.price_lists where code = 'public-default' and is_active and archived_at is null
-on conflict (singleton) do nothing;
-
-insert into public.price_list_items(price_list_id, variant_id, sellable_unit_id, amount_minor)
-select configuration.default_price_list_id, variant.id, unit.id, round(variant.base_price * 100)::bigint
-from public.product_variants variant
-join public.variant_packaging_units unit
-  on unit.variant_id = variant.id
- and unit.is_active and unit.archived_at is null
- and unit.is_sellable and unit.is_default_sale_unit
-cross join public.pricing_configuration configuration
-where variant.is_active and variant.archived_at is null and variant.base_price > 0
-  and not exists (
-    select 1 from public.price_list_items item
-    where item.price_list_id = configuration.default_price_list_id
-      and item.variant_id = variant.id and item.sellable_unit_id = unit.id
-      and item.is_active and item.archived_at is null
-  );
-
-create or replace function public.pricing_assert_admin(p_actor_id uuid)
-returns void language plpgsql security definer set search_path = '' as $$
-begin
-  if p_actor_id is null or not exists (
-    select 1 from public.profiles where id = p_actor_id and is_admin
-  ) then
-    raise exception using errcode = '42501', message = 'ADMIN_UNAUTHORIZED';
-  end if;
-end
-$$;
-
-create or replace function public.pricing_current_time()
-returns timestamptz language sql stable security definer set search_path = '' as $$
-  select now()
-$$;
-
-create or replace function public.pricing_set_default(
-  p_actor_id uuid,
-  p_price_list_id uuid,
-  p_expected_version bigint default null,
-  p_reason text default null,
-  p_correlation_id uuid default gen_random_uuid()
-)
-returns jsonb language plpgsql security definer set search_path = '' as $$
-declare
-  current_configuration public.pricing_configuration%rowtype;
-  target_list public.price_lists%rowtype;
-begin
-  perform public.pricing_assert_admin(p_actor_id);
-  select * into current_configuration from public.pricing_configuration where singleton for update;
-  if p_expected_version is not null and current_configuration.version <> p_expected_version then
-    raise exception using errcode = '40001', message = 'PRICING_VERSION_CONFLICT';
-  end if;
-  select * into target_list from public.price_lists where id = p_price_list_id and is_active and archived_at is null;
-  if not found then raise exception using errcode = '22023', message = 'DEFAULT_PRICE_LIST_INVALID'; end if;
-  update public.pricing_configuration
-  set default_price_list_id = p_price_list_id, version = version + 1, updated_by = p_actor_id, updated_at = now()
-  where singleton;
-  insert into public.pricing_audit_events(action, actor_id, entity_type, entity_id, correlation_id, previous_state, new_state, reason)
-  values ('DEFAULT_PRICE_LIST_CHANGED', p_actor_id, 'pricing_configuration', p_price_list_id, p_correlation_id,
-    jsonb_build_object('default_price_list_id', current_configuration.default_price_list_id, 'version', current_configuration.version),
-    jsonb_build_object('default_price_list_id', p_price_list_id, 'version', current_configuration.version + 1), p_reason);
-  return jsonb_build_object('default_price_list_id', p_price_list_id, 'version', current_configuration.version + 1, 'correlation_id', p_correlation_id);
-end
-$$;
-
-create or replace function public.pricing_set_customer_type_mapping(
-  p_actor_id uuid,
-  p_customer_type_id uuid,
-  p_price_list_id uuid,
-  p_reason text default null,
-  p_correlation_id uuid default gen_random_uuid()
-)
-returns jsonb language plpgsql security definer set search_path = '' as $$
-declare previous_mapping jsonb;
-begin
-  perform public.pricing_assert_admin(p_actor_id);
-  if not exists (select 1 from public.customer_types where id = p_customer_type_id and is_active) then
-    raise exception using errcode = '22023', message = 'PRICING_TARGET_INVALID';
-  end if;
-  if p_price_list_id is not null and not exists (select 1 from public.price_lists where id = p_price_list_id and is_active and archived_at is null) then
-    raise exception using errcode = '22023', message = 'DEFAULT_PRICE_LIST_INVALID';
-  end if;
-  select to_jsonb(mapping) into previous_mapping from public.customer_type_price_list_mappings mapping
-  where customer_type_id = p_customer_type_id and is_active and archived_at is null for update;
-  update public.customer_type_price_list_mappings
-    set is_active = false, archived_at = now(), updated_by = p_actor_id
-    where customer_type_id = p_customer_type_id and is_active and archived_at is null;
-  if p_price_list_id is not null then
-    insert into public.customer_type_price_list_mappings(customer_type_id, price_list_id, created_by, updated_by)
-    values (p_customer_type_id, p_price_list_id, p_actor_id, p_actor_id);
-  end if;
-  insert into public.pricing_audit_events(action, actor_id, entity_type, entity_id, correlation_id, previous_state, new_state, reason)
-  values ('CUSTOMER_TYPE_PRICE_LIST_MAPPED', p_actor_id, 'customer_type_mapping', p_customer_type_id, p_correlation_id,
-    previous_mapping, jsonb_build_object('customer_type_id', p_customer_type_id, 'price_list_id', p_price_list_id), p_reason);
-  return jsonb_build_object('customer_type_id', p_customer_type_id, 'price_list_id', p_price_list_id, 'correlation_id', p_correlation_id);
-end
-$$;
-
-create or replace function public.pricing_assign_customer_list(
-  p_actor_id uuid,
-  p_customer_id uuid,
-  p_price_list_id uuid,
-  p_reason text default null,
-  p_correlation_id uuid default gen_random_uuid()
-)
-returns jsonb language plpgsql security definer set search_path = '' as $$
-declare previous_list_id uuid;
-begin
-  perform public.pricing_assert_admin(p_actor_id);
-  if p_price_list_id is not null and not exists (select 1 from public.price_lists where id = p_price_list_id and is_active and archived_at is null) then
-    raise exception using errcode = '22023', message = 'DEFAULT_PRICE_LIST_INVALID';
-  end if;
-  select direct_price_list_id into previous_list_id from public.customers where id = p_customer_id for update;
-  if not found then raise exception using errcode = 'P0002', message = 'CUSTOMER_NOT_FOUND'; end if;
-  update public.customers set direct_price_list_id = p_price_list_id, updated_at = now() where id = p_customer_id;
-  insert into public.customer_price_list_assignment_audit(customer_id, previous_price_list_id, new_price_list_id, actor_id, reason, correlation_id)
-  values (p_customer_id, previous_list_id, p_price_list_id, p_actor_id, p_reason, p_correlation_id);
-  insert into public.pricing_audit_events(action, actor_id, entity_type, entity_id, customer_id, correlation_id, previous_state, new_state, reason)
-  values ('CUSTOMER_PRICE_LIST_ASSIGNED', p_actor_id, 'customer_price_list_assignment', p_customer_id, p_customer_id, p_correlation_id,
-    jsonb_build_object('price_list_id', previous_list_id), jsonb_build_object('price_list_id', p_price_list_id), p_reason);
-  return jsonb_build_object('customer_id', p_customer_id, 'price_list_id', p_price_list_id, 'correlation_id', p_correlation_id);
-end
-$$;
-
-create or replace function public.pricing_bulk_upsert_items(p_actor_id uuid,p_price_list_id uuid,p_items jsonb,p_correlation_id uuid default gen_random_uuid())
-returns jsonb language plpgsql security definer set search_path='' as $$
-declare item jsonb; inserted_count int:=0;
-begin
-  perform public.pricing_assert_admin(p_actor_id);
-  if jsonb_typeof(p_items) is distinct from 'array' or jsonb_array_length(p_items)=0 then raise exception using errcode='22023',message='PRICING_TARGET_INVALID'; end if;
-  if not exists(select 1 from public.price_lists where id=p_price_list_id and is_active and archived_at is null) then raise exception using errcode='22023',message='DEFAULT_PRICE_LIST_INVALID'; end if;
-  for item in select value from jsonb_array_elements(p_items) loop
-    if coalesce((item->>'close_prior_at_start')::boolean,false) and item->>'valid_from' is not null then update public.price_list_items set valid_until=(item->>'valid_from')::timestamptz,updated_by=p_actor_id where price_list_id=p_price_list_id and variant_id=(item->>'variant_id')::uuid and sellable_unit_id=(item->>'sellable_unit_id')::uuid and is_active and archived_at is null and valid_until is null and coalesce(valid_from,'-infinity'::timestamptz)<(item->>'valid_from')::timestamptz; end if;
-    insert into public.price_list_items(price_list_id,variant_id,sellable_unit_id,amount_minor,valid_from,valid_until,created_by,updated_by) values(p_price_list_id,(item->>'variant_id')::uuid,(item->>'sellable_unit_id')::uuid,(item->>'amount_minor')::bigint,(item->>'valid_from')::timestamptz,(item->>'valid_until')::timestamptz,p_actor_id,p_actor_id);
-    inserted_count:=inserted_count+1;
-  end loop;
-  insert into public.pricing_audit_events(action,actor_id,entity_type,entity_id,correlation_id,new_state) values('PRICE_ENTRY_SCHEDULED',p_actor_id,'price_list',p_price_list_id,p_correlation_id,jsonb_build_object('item_count',inserted_count));
-  return jsonb_build_object('price_list_id',p_price_list_id,'saved',inserted_count,'correlation_id',p_correlation_id);
-end $$;
-
-create or replace function public.pricing_upsert_customer_override(p_actor_id uuid,p_customer_id uuid,p_override jsonb,p_correlation_id uuid default gen_random_uuid())
-returns jsonb language plpgsql security definer set search_path='' as $$
-declare result public.customer_unit_price_overrides;
-begin
-  perform public.pricing_assert_admin(p_actor_id);
-  if not exists(select 1 from public.customers where id=p_customer_id) then raise exception using errcode='P0002',message='CUSTOMER_NOT_FOUND'; end if;
-  if coalesce((p_override->>'close_prior_at_start')::boolean,false) and p_override->>'valid_from' is not null then update public.customer_unit_price_overrides set valid_until=(p_override->>'valid_from')::timestamptz,updated_by=p_actor_id where customer_id=p_customer_id and variant_id=(p_override->>'variant_id')::uuid and sellable_unit_id=(p_override->>'sellable_unit_id')::uuid and is_active and archived_at is null and valid_until is null and coalesce(valid_from,'-infinity'::timestamptz)<(p_override->>'valid_from')::timestamptz; end if;
-  insert into public.customer_unit_price_overrides(customer_id,variant_id,sellable_unit_id,amount_minor,currency,valid_from,valid_until,reason,created_by,updated_by) values(p_customer_id,(p_override->>'variant_id')::uuid,(p_override->>'sellable_unit_id')::uuid,(p_override->>'amount_minor')::bigint,'EGP',(p_override->>'valid_from')::timestamptz,(p_override->>'valid_until')::timestamptz,p_override->>'reason',p_actor_id,p_actor_id) returning * into result;
-  insert into public.pricing_audit_events(action,actor_id,entity_type,entity_id,customer_id,variant_id,sellable_unit_id,correlation_id,new_state,reason) values('CUSTOMER_PRICE_OVERRIDE_CHANGED',p_actor_id,'customer_unit_price_override',result.id,p_customer_id,result.variant_id,result.sellable_unit_id,p_correlation_id,jsonb_build_object('valid_from',result.valid_from,'valid_until',result.valid_until,'active',true),result.reason);
-  return jsonb_build_object('id',result.id,'customer_id',p_customer_id,'correlation_id',p_correlation_id);
-end $$;
-
-create or replace function public.pricing_create_order(p_order jsonb, p_items jsonb, p_grant_hash text default null)
-returns jsonb language plpgsql security definer set search_path = '' as $$
-declare
-  result public.orders;
-  customer public.customers;
-  calculated_items_total bigint;
-  requested_items_total bigint := (p_order->>'items_total_minor')::bigint;
-  requested_shipping bigint := (p_order->>'shipping_cost_minor')::bigint;
-  requested_discount bigint := (p_order->>'discount_minor')::bigint;
-  requested_grand_total bigint := (p_order->>'grand_total_minor')::bigint;
-begin
-  if jsonb_typeof(p_items) is distinct from 'array' or jsonb_array_length(p_items) = 0 then raise exception using errcode = '22023', message = 'PRICE_UNAVAILABLE'; end if;
-  select sum(item.line_total_minor) into calculated_items_total from jsonb_to_recordset(p_items) as item(unit_amount_minor bigint,line_total_minor bigint,quantity int);
-  if calculated_items_total is distinct from requested_items_total or requested_grand_total <> greatest(0,requested_items_total+requested_shipping-requested_discount)
-    or requested_items_total < 0 or requested_shipping < 0 or requested_discount < 0
-    or exists(select 1 from jsonb_to_recordset(p_items) as item(variant_id uuid,sellable_unit_id uuid,quantity int,unit_amount_minor bigint,line_total_minor bigint,currency text,pricing_source text,pricing_reference_id uuid,price_is_derived boolean)
-      left join public.product_variants variant on variant.id=item.variant_id left join public.variant_packaging_units unit on unit.id=item.sellable_unit_id and unit.variant_id=variant.id left join public.products product on product.id=variant.product_id
-      where item.quantity<=0 or item.unit_amount_minor<=0 or item.line_total_minor<>item.unit_amount_minor*item.quantity or item.currency<>'EGP' or item.pricing_reference_id is null or item.price_is_derived is null
-        or item.pricing_source not in ('customer_override','direct_price_list','customer_type_price_list','default_price_list') or variant.id is null or not variant.is_active or variant.archived_at is not null
-        or product.id is null or not product.is_active or product.archived_at is not null or unit.id is null or not unit.is_active or unit.archived_at is not null or not unit.is_sellable)
-  then raise exception using errcode='22023',message='PRICING_TARGET_INVALID'; end if;
-  if p_order->>'customer_id' is not null then
-    select * into strict customer from public.customers where id=(p_order->>'customer_id')::uuid for share;
-    if customer.auth_user_id is null or customer.auth_user_id is distinct from (p_order->>'user_id')::uuid or length(trim(coalesce(customer.full_name,'')))<2 or coalesce(customer.phone,'') !~ '^01[0125][0-9]{8}$' then raise exception using errcode='22023',message='Invalid customer association'; end if;
-    if p_grant_hash is not null then raise exception using errcode='22023',message='Unexpected guest grant'; end if;
-  elsif p_order->>'user_id' is not null or p_grant_hash is null or p_grant_hash !~ '^[a-f0-9]{64}$' then raise exception using errcode='22023',message='Invalid guest grant'; end if;
-  insert into public.orders(order_number,user_id,customer_id,customer_name,customer_phone,alt_phone,governorate,city,address,notes,items_total,shipping_cost,discount,discount_code,grand_total,payment_method,items_total_minor,shipping_cost_minor,discount_minor,grand_total_minor,price_currency)
-  values(p_order->>'order_number',(p_order->>'user_id')::uuid,customer.id,p_order->>'customer_name',p_order->>'customer_phone',p_order->>'alt_phone',p_order->>'governorate',p_order->>'city',p_order->>'address',p_order->>'notes',requested_items_total/100.0,requested_shipping/100.0,requested_discount/100.0,p_order->>'discount_code',requested_grand_total/100.0,p_order->>'payment_method',requested_items_total,requested_shipping,requested_discount,requested_grand_total,'EGP') returning * into result;
-  insert into public.order_items(order_id,product_id,variant_id,sellable_unit_id,sku,sellable_unit_code,name_en,name_ar,product_name_en,product_name_ar,variant_label_en,variant_label_ar,unit_label_en,unit_label_ar,units_per_sold_package_num,units_per_sold_package_den,base_quantity_per_unit_num,base_quantity_per_unit_den,equivalent_base_quantity_num,equivalent_base_quantity_den,price,line_total,quantity,image,unit_price_minor,line_total_minor,price_currency,pricing_source,pricing_reference_id,price_is_derived,derived_from_sellable_unit_id)
-  select result.id,product.id,variant.id,unit.id,variant.sku,unit.code,product.name_en,product.name_ar,product.name_en,product.name_ar,variant.label_en,variant.label_ar,unit.label_en,unit.label_ar,unit.quantity_per_parent_num,unit.quantity_per_parent_den,unit.base_quantity_num,unit.base_quantity_den,unit.base_quantity_num*item.quantity,unit.base_quantity_den,item.unit_amount_minor/100.0,item.line_total_minor/100.0,item.quantity,(product.images)[1],item.unit_amount_minor,item.line_total_minor,item.currency,item.pricing_source,item.pricing_reference_id,item.price_is_derived,item.derived_from_sellable_unit_id
-  from jsonb_to_recordset(p_items) as item(variant_id uuid,sellable_unit_id uuid,quantity int,unit_amount_minor bigint,line_total_minor bigint,currency text,pricing_source text,pricing_reference_id uuid,price_is_derived boolean,derived_from_sellable_unit_id uuid)
-  join public.product_variants variant on variant.id=item.variant_id join public.variant_packaging_units unit on unit.id=item.sellable_unit_id and unit.variant_id=variant.id join public.products product on product.id=variant.product_id;
-  if customer.id is null then insert into public.order_confirmation_grants(order_id,secret_hash,expires_at) values(result.id,p_grant_hash,now()+interval '30 days'); else insert into public.customer_audit(customer_id,actor_id,action,details) values(customer.id,customer.auth_user_id,'order.associated',jsonb_build_object('order_id',result.id)); end if;
-  return jsonb_build_object('id',result.id,'order_number',result.order_number,'grand_total',result.grand_total,'payment_method',result.payment_method);
-end
-$$;
-
-alter table public.price_lists enable row level security;
-alter table public.pricing_configuration enable row level security;
-alter table public.price_list_items enable row level security;
-alter table public.customer_type_price_list_mappings enable row level security;
-alter table public.customer_price_list_assignment_audit enable row level security;
-alter table public.customer_unit_price_overrides enable row level security;
-alter table public.pricing_audit_events enable row level security;
-
-revoke all on public.price_lists, public.pricing_configuration, public.price_list_items,
-  public.customer_type_price_list_mappings, public.customer_price_list_assignment_audit,
-  public.customer_unit_price_overrides, public.pricing_audit_events from public, anon, authenticated;
-grant select, insert, update on public.price_lists, public.pricing_configuration, public.price_list_items,
-  public.customer_type_price_list_mappings, public.customer_price_list_assignment_audit,
-  public.customer_unit_price_overrides, public.pricing_audit_events to service_role;
-
-revoke all on function public.pricing_assert_admin(uuid) from public, anon, authenticated;
-revoke all on function public.pricing_current_time() from public, anon, authenticated;
-revoke all on function public.pricing_set_default(uuid,uuid,bigint,text,uuid) from public, anon, authenticated;
-revoke all on function public.pricing_set_customer_type_mapping(uuid,uuid,uuid,text,uuid) from public, anon, authenticated;
-revoke all on function public.pricing_assign_customer_list(uuid,uuid,uuid,text,uuid) from public, anon, authenticated;
-revoke all on function public.pricing_bulk_upsert_items(uuid,uuid,jsonb,uuid) from public, anon, authenticated;
-revoke all on function public.pricing_upsert_customer_override(uuid,uuid,jsonb,uuid) from public, anon, authenticated;
-revoke all on function public.pricing_create_order(jsonb,jsonb,text) from public, anon, authenticated;
-grant execute on function public.pricing_assert_admin(uuid) to service_role;
-grant execute on function public.pricing_current_time() to service_role;
-grant execute on function public.pricing_set_default(uuid,uuid,bigint,text,uuid) to service_role;
-grant execute on function public.pricing_set_customer_type_mapping(uuid,uuid,uuid,text,uuid) to service_role;
-grant execute on function public.pricing_assign_customer_list(uuid,uuid,uuid,text,uuid) to service_role;
-grant execute on function public.pricing_bulk_upsert_items(uuid,uuid,jsonb,uuid) to service_role;
-grant execute on function public.pricing_upsert_customer_override(uuid,uuid,jsonb,uuid) to service_role;
-grant execute on function public.pricing_create_order(jsonb,jsonb,text) to service_role;
-
-notify pgrst, 'reload schema';
 
 notify pgrst, 'reload schema';
 
@@ -1373,6 +941,7 @@ grant execute on function public.assign_customer_type(uuid, text, uuid, text) to
 notify pgrst, 'reload schema';
 
 -- =====================================================================
+
 -- Feature 003: Catalog variants, attributes, and R2 media
 -- =====================================================================
 -- Feature 003: canonical catalog variants, flexible attributes, and R2 media.
@@ -2322,5 +1891,1259 @@ begin
 end $$;
 revoke all on function public.admin_replace_order_items(uuid,jsonb,numeric,numeric,numeric,numeric) from public,anon,authenticated;
 grant execute on function public.admin_replace_order_items(uuid,jsonb,numeric,numeric,numeric,numeric) to service_role;
+
+notify pgrst, 'reload schema';
+
+-- Feature 004: server-authoritative Variant and Sellable Unit pricing.
+
+create extension if not exists "pgcrypto";
+create extension if not exists "btree_gist";
+
+create table if not exists public.price_lists (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique check (code ~ '^[a-z][a-z0-9-]*$'),
+  name_en text not null check (length(btrim(name_en)) between 1 and 160),
+  name_ar text not null check (length(btrim(name_ar)) between 1 and 160),
+  currency text not null default 'EGP' check (currency = 'EGP'),
+  is_active boolean not null default true,
+  archived_at timestamptz,
+  created_by uuid references auth.users(id) on delete set null,
+  updated_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (not is_active or archived_at is null)
+);
+
+create table if not exists public.pricing_configuration (
+  singleton boolean primary key default true check (singleton),
+  default_price_list_id uuid not null references public.price_lists(id) on delete restrict,
+  version bigint not null default 1 check (version > 0),
+  updated_by uuid references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.price_list_items (
+  id uuid primary key default gen_random_uuid(),
+  price_list_id uuid not null references public.price_lists(id) on delete restrict,
+  variant_id uuid not null references public.product_variants(id) on delete restrict,
+  sellable_unit_id uuid not null,
+  amount_minor bigint not null check (amount_minor > 0 and amount_minor <= 999999999999),
+  currency text not null default 'EGP' check (currency = 'EGP'),
+  valid_from timestamptz,
+  valid_until timestamptz,
+  is_active boolean not null default true,
+  archived_at timestamptz,
+  created_by uuid references auth.users(id) on delete set null,
+  updated_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  foreign key (sellable_unit_id, variant_id)
+    references public.variant_packaging_units(id, variant_id) on delete restrict,
+  check (valid_until is null or valid_from is null or valid_until > valid_from),
+  check (not is_active or archived_at is null),
+  constraint price_list_items_no_effective_overlap exclude using gist (
+    price_list_id with =,
+    variant_id with =,
+    sellable_unit_id with =,
+    tstzrange(coalesce(valid_from, '-infinity'::timestamptz), coalesce(valid_until, 'infinity'::timestamptz), '[)') with &&
+  ) where (is_active and archived_at is null)
+);
+
+create table if not exists public.customer_type_price_list_mappings (
+  id uuid primary key default gen_random_uuid(),
+  customer_type_id uuid not null references public.customer_types(id) on delete restrict,
+  price_list_id uuid not null references public.price_lists(id) on delete restrict,
+  is_active boolean not null default true,
+  archived_at timestamptz,
+  created_by uuid references auth.users(id) on delete set null,
+  updated_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (not is_active or archived_at is null)
+);
+create unique index if not exists customer_type_price_list_one_active_idx
+  on public.customer_type_price_list_mappings(customer_type_id)
+  where is_active and archived_at is null;
+
+alter table public.customers add column if not exists direct_price_list_id uuid references public.price_lists(id) on delete restrict;
+
+create table if not exists public.customer_price_list_assignment_audit (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.customers(id) on delete restrict,
+  previous_price_list_id uuid references public.price_lists(id) on delete restrict,
+  new_price_list_id uuid references public.price_lists(id) on delete restrict,
+  actor_id uuid references auth.users(id) on delete set null,
+  reason text,
+  correlation_id uuid not null default gen_random_uuid(),
+  occurred_at timestamptz not null default now()
+);
+
+create table if not exists public.customer_unit_price_overrides (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.customers(id) on delete restrict,
+  variant_id uuid not null references public.product_variants(id) on delete restrict,
+  sellable_unit_id uuid not null,
+  amount_minor bigint not null check (amount_minor > 0 and amount_minor <= 999999999999),
+  currency text not null default 'EGP' check (currency = 'EGP'),
+  valid_from timestamptz,
+  valid_until timestamptz,
+  is_active boolean not null default true,
+  archived_at timestamptz,
+  reason text not null check (length(btrim(reason)) between 1 and 1000),
+  created_by uuid references auth.users(id) on delete set null,
+  updated_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  foreign key (sellable_unit_id, variant_id)
+    references public.variant_packaging_units(id, variant_id) on delete restrict,
+  check (valid_until is null or valid_from is null or valid_until > valid_from),
+  check (not is_active or archived_at is null),
+  constraint customer_unit_overrides_no_effective_overlap exclude using gist (
+    customer_id with =,
+    variant_id with =,
+    sellable_unit_id with =,
+    tstzrange(coalesce(valid_from, '-infinity'::timestamptz), coalesce(valid_until, 'infinity'::timestamptz), '[)') with &&
+  ) where (is_active and archived_at is null)
+);
+
+create table if not exists public.pricing_audit_events (
+  id uuid primary key default gen_random_uuid(),
+  action text not null,
+  actor_id uuid references auth.users(id) on delete set null,
+  entity_type text not null,
+  entity_id uuid,
+  customer_id uuid references public.customers(id) on delete set null,
+  variant_id uuid references public.product_variants(id) on delete set null,
+  sellable_unit_id uuid references public.variant_packaging_units(id) on delete set null,
+  correlation_id uuid not null default gen_random_uuid(),
+  previous_state jsonb,
+  new_state jsonb,
+  reason text,
+  context jsonb not null default '{}'::jsonb,
+  occurred_at timestamptz not null default now()
+);
+
+alter table public.orders add column if not exists items_total_minor bigint;
+alter table public.orders add column if not exists shipping_cost_minor bigint;
+alter table public.orders add column if not exists discount_minor bigint;
+alter table public.orders add column if not exists grand_total_minor bigint;
+alter table public.orders add column if not exists price_currency text;
+alter table public.order_items add column if not exists unit_price_minor bigint;
+alter table public.order_items add column if not exists line_total_minor bigint;
+alter table public.order_items add column if not exists price_currency text;
+alter table public.order_items add column if not exists pricing_source text;
+alter table public.order_items add column if not exists pricing_reference_id uuid;
+alter table public.order_items add column if not exists price_is_derived boolean;
+alter table public.order_items add column if not exists derived_from_sellable_unit_id uuid references public.variant_packaging_units(id) on delete set null;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.order_items'::regclass and conname = 'order_items_pricing_snapshot_integrity') then
+    alter table public.order_items add constraint order_items_pricing_snapshot_integrity check (
+      (unit_price_minor is null and line_total_minor is null and price_currency is null and pricing_source is null and price_is_derived is null)
+      or
+      (unit_price_minor >= 0 and line_total_minor = unit_price_minor * quantity and price_currency = 'EGP'
+        and pricing_source in ('customer_override','direct_price_list','customer_type_price_list','default_price_list')
+        and pricing_reference_id is not null and price_is_derived is not null)
+    ) not valid;
+  end if;
+end $$;
+
+create index if not exists price_list_items_resolution_idx
+  on public.price_list_items(price_list_id, variant_id, sellable_unit_id, valid_from, valid_until)
+  where is_active and archived_at is null;
+create index if not exists customer_unit_overrides_resolution_idx
+  on public.customer_unit_price_overrides(customer_id, variant_id, sellable_unit_id, valid_from, valid_until)
+  where is_active and archived_at is null;
+create index if not exists customer_type_price_list_mapping_lookup_idx
+  on public.customer_type_price_list_mappings(customer_type_id, price_list_id)
+  where is_active and archived_at is null;
+create index if not exists pricing_audit_events_history_idx
+  on public.pricing_audit_events(occurred_at desc, action);
+create index if not exists pricing_audit_events_customer_idx
+  on public.pricing_audit_events(customer_id, occurred_at desc) where customer_id is not null;
+
+create or replace function public.pricing_touch_updated_at()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  new.updated_at = now();
+  return new;
+end
+$$;
+
+drop trigger if exists price_lists_touch on public.price_lists;
+create trigger price_lists_touch before update on public.price_lists
+  for each row execute function public.pricing_touch_updated_at();
+drop trigger if exists price_list_items_touch on public.price_list_items;
+create trigger price_list_items_touch before update on public.price_list_items
+  for each row execute function public.pricing_touch_updated_at();
+drop trigger if exists customer_type_price_list_mappings_touch on public.customer_type_price_list_mappings;
+create trigger customer_type_price_list_mappings_touch before update on public.customer_type_price_list_mappings
+  for each row execute function public.pricing_touch_updated_at();
+drop trigger if exists customer_unit_price_overrides_touch on public.customer_unit_price_overrides;
+create trigger customer_unit_price_overrides_touch before update on public.customer_unit_price_overrides
+  for each row execute function public.pricing_touch_updated_at();
+
+create or replace function public.pricing_protect_default_list()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if (not new.is_active or new.archived_at is not null)
+    and exists (select 1 from public.pricing_configuration where default_price_list_id = old.id)
+  then
+    raise exception using errcode = '23514', message = 'DEFAULT_PRICE_LIST_INVALID';
+  end if;
+  return new;
+end
+$$;
+drop trigger if exists price_lists_protect_default on public.price_lists;
+create trigger price_lists_protect_default before update on public.price_lists
+  for each row execute function public.pricing_protect_default_list();
+
+insert into public.price_lists(code, name_en, name_ar, currency, is_active)
+values ('public-default', 'Public default', 'السعر الافتراضي', 'EGP', true)
+on conflict (code) do nothing;
+
+insert into public.pricing_configuration(singleton, default_price_list_id)
+select true, id from public.price_lists where code = 'public-default' and is_active and archived_at is null
+on conflict (singleton) do nothing;
+
+insert into public.price_list_items(price_list_id, variant_id, sellable_unit_id, amount_minor)
+select configuration.default_price_list_id, variant.id, unit.id, round(variant.base_price * 100)::bigint
+from public.product_variants variant
+join public.variant_packaging_units unit
+  on unit.variant_id = variant.id
+ and unit.is_active and unit.archived_at is null
+ and unit.is_sellable and unit.is_default_sale_unit
+cross join public.pricing_configuration configuration
+where variant.is_active and variant.archived_at is null and variant.base_price > 0
+  and not exists (
+    select 1 from public.price_list_items item
+    where item.price_list_id = configuration.default_price_list_id
+      and item.variant_id = variant.id and item.sellable_unit_id = unit.id
+      and item.is_active and item.archived_at is null
+  );
+
+create or replace function public.pricing_assert_admin(p_actor_id uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if p_actor_id is null or not exists (
+    select 1 from public.profiles where id = p_actor_id and is_admin
+  ) then
+    raise exception using errcode = '42501', message = 'ADMIN_UNAUTHORIZED';
+  end if;
+end
+$$;
+
+create or replace function public.pricing_current_time()
+returns timestamptz language sql stable security definer set search_path = '' as $$
+  select now()
+$$;
+
+create or replace function public.pricing_resolve_targets(
+  p_customer_id uuid,
+  p_targets jsonb,
+  p_at timestamptz default null
+)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare
+  effective_at timestamptz := coalesce(p_at, transaction_timestamp());
+  resolved jsonb;
+begin
+  if jsonb_typeof(p_targets) is distinct from 'array' or jsonb_array_length(p_targets) > 100 then
+    raise exception using errcode = '22023', message = 'PRICING_TARGET_INVALID';
+  end if;
+  if p_customer_id is not null and not exists (select 1 from public.customers where id = p_customer_id) then
+    raise exception using errcode = 'P0002', message = 'CUSTOMER_NOT_FOUND';
+  end if;
+
+  with recursive raw_requested as (
+    select
+      (entry.value->>'variantId')::uuid as variant_id,
+      (entry.value->>'sellableUnitId')::uuid as sellable_unit_id,
+      entry.ordinality::int as ordinality
+    from jsonb_array_elements(p_targets) with ordinality as entry(value, ordinality)
+  ), requested as (
+    select variant_id, sellable_unit_id, min(ordinality) as ordinality
+    from raw_requested
+    group by variant_id, sellable_unit_id
+  ), customer_context as (
+    select customer_type_id, direct_price_list_id
+    from public.customers
+    where id = p_customer_id
+  ), catalog as (
+    select
+      requested.ordinality,
+      requested.variant_id,
+      requested.sellable_unit_id,
+      selected.base_quantity_num as target_base_num,
+      selected.base_quantity_den as target_base_den
+    from requested
+    join public.product_variants variant
+      on variant.id = requested.variant_id and variant.is_active and variant.archived_at is null
+    join public.products product
+      on product.id = variant.product_id and product.is_active and product.archived_at is null
+    join public.variant_packaging_units selected
+      on selected.id = requested.sellable_unit_id and selected.variant_id = requested.variant_id
+      and selected.is_active and selected.archived_at is null and selected.is_sellable
+  ), unit_path as (
+    select
+      catalog.ordinality,
+      catalog.variant_id,
+      catalog.sellable_unit_id,
+      unit.id as candidate_unit_id,
+      unit.parent_unit_id,
+      0 as depth,
+      catalog.target_base_num,
+      catalog.target_base_den,
+      unit.base_quantity_num as source_base_num,
+      unit.base_quantity_den as source_base_den
+    from catalog
+    join public.variant_packaging_units unit on unit.id = catalog.sellable_unit_id
+    union all
+    select
+      unit_path.ordinality,
+      unit_path.variant_id,
+      unit_path.sellable_unit_id,
+      parent.id,
+      parent.parent_unit_id,
+      unit_path.depth + 1,
+      unit_path.target_base_num,
+      unit_path.target_base_den,
+      parent.base_quantity_num,
+      parent.base_quantity_den
+    from unit_path
+    join public.variant_packaging_units parent
+      on parent.id = unit_path.parent_unit_id and parent.variant_id = unit_path.variant_id
+      and parent.is_active and parent.archived_at is null
+  ), source_lists as (
+    select 'direct_price_list'::text as source, context.direct_price_list_id as price_list_id, 2 as priority
+    from customer_context context
+    where context.direct_price_list_id is not null
+    union all
+    select 'customer_type_price_list', mapping.price_list_id, 3
+    from customer_context context
+    join public.customer_type_price_list_mappings mapping
+      on mapping.customer_type_id = context.customer_type_id
+      and mapping.is_active and mapping.archived_at is null
+    union all
+    select 'default_price_list', configuration.default_price_list_id, 4
+    from public.pricing_configuration configuration
+    where configuration.singleton
+  ), override_candidates as (
+    select
+      path.ordinality,
+      path.variant_id,
+      path.sellable_unit_id,
+      'customer_override'::text as source,
+      1 as priority,
+      override.id as reference_id,
+      null::uuid as price_list_id,
+      override.amount_minor,
+      override.currency,
+      path.candidate_unit_id as source_unit_id,
+      path.depth,
+      path.target_base_num,
+      path.target_base_den,
+      path.source_base_num,
+      path.source_base_den
+    from unit_path path
+    join public.customer_unit_price_overrides override
+      on override.customer_id = p_customer_id
+      and override.variant_id = path.variant_id
+      and override.sellable_unit_id = path.candidate_unit_id
+      and override.is_active and override.archived_at is null
+      and coalesce(override.valid_from, '-infinity'::timestamptz) <= effective_at
+      and coalesce(override.valid_until, 'infinity'::timestamptz) > effective_at
+  ), list_candidates as (
+    select
+      path.ordinality,
+      path.variant_id,
+      path.sellable_unit_id,
+      source.source,
+      source.priority,
+      item.id as reference_id,
+      source.price_list_id,
+      item.amount_minor,
+      item.currency,
+      path.candidate_unit_id as source_unit_id,
+      path.depth,
+      path.target_base_num,
+      path.target_base_den,
+      path.source_base_num,
+      path.source_base_den
+    from unit_path path
+    join source_lists source on true
+    join public.price_lists list
+      on list.id = source.price_list_id and list.is_active and list.archived_at is null
+    join public.price_list_items item
+      on item.price_list_id = source.price_list_id
+      and item.variant_id = path.variant_id
+      and item.sellable_unit_id = path.candidate_unit_id
+      and item.is_active and item.archived_at is null
+      and coalesce(item.valid_from, '-infinity'::timestamptz) <= effective_at
+      and coalesce(item.valid_until, 'infinity'::timestamptz) > effective_at
+  ), candidates as (
+    select * from override_candidates
+    union all
+    select * from list_candidates
+  ), ranked as (
+    select candidates.*,
+      row_number() over (partition by variant_id, sellable_unit_id order by priority, depth, reference_id) as candidate_rank
+    from candidates
+  ), selected as (
+    select
+      requested.ordinality,
+      requested.variant_id,
+      requested.sellable_unit_id,
+      catalog.variant_id is not null as target_available,
+      ranked.source,
+      ranked.reference_id,
+      ranked.price_list_id,
+      ranked.currency,
+      ranked.source_unit_id,
+      ranked.depth,
+      case when ranked.reference_id is null then null else
+        round(
+          ranked.amount_minor::numeric * ranked.target_base_num * ranked.source_base_den
+          / (ranked.target_base_den * ranked.source_base_num)
+        )::bigint
+      end as amount_minor
+    from requested
+    left join catalog using (variant_id, sellable_unit_id, ordinality)
+    left join ranked
+      on ranked.variant_id = requested.variant_id
+      and ranked.sellable_unit_id = requested.sellable_unit_id
+      and ranked.candidate_rank = 1
+  )
+  select coalesce(jsonb_agg(
+    case when selected.amount_minor is null then
+      jsonb_build_object(
+        'variantId', selected.variant_id,
+        'sellableUnitId', selected.sellable_unit_id,
+        'availability', 'unavailable',
+        'reason', case when selected.target_available then 'no_price' else 'target_unavailable' end,
+        'effectiveAt', effective_at
+      )
+    else
+      jsonb_build_object(
+        'variantId', selected.variant_id,
+        'sellableUnitId', selected.sellable_unit_id,
+        'availability', 'priced',
+        'amountMinor', selected.amount_minor::text,
+        'currency', selected.currency,
+        'source', selected.source,
+        'resolutionKind', case when selected.depth = 0 then 'explicit' else 'derived' end,
+        'priceListId', selected.price_list_id,
+        'priceListItemId', case when selected.source = 'customer_override' then null else selected.reference_id end,
+        'overrideId', case when selected.source = 'customer_override' then selected.reference_id else null end,
+        'derivedFromUnitId', case when selected.depth = 0 then null else selected.source_unit_id end,
+        'effectiveAt', effective_at
+      )
+    end
+    order by selected.ordinality
+  ), '[]'::jsonb) into resolved
+  from selected;
+
+  return resolved;
+exception
+  when invalid_text_representation or numeric_value_out_of_range or division_by_zero then
+    raise exception using errcode = '22023', message = 'PRICING_TARGET_INVALID';
+end
+$$;
+
+create or replace function public.pricing_set_default(
+  p_actor_id uuid,
+  p_price_list_id uuid,
+  p_expected_version bigint default null,
+  p_reason text default null,
+  p_correlation_id uuid default gen_random_uuid()
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  current_configuration public.pricing_configuration%rowtype;
+  target_list public.price_lists%rowtype;
+begin
+  perform public.pricing_assert_admin(p_actor_id);
+  select * into current_configuration from public.pricing_configuration where singleton for update;
+  if p_expected_version is not null and current_configuration.version <> p_expected_version then
+    raise exception using errcode = '40001', message = 'PRICING_VERSION_CONFLICT';
+  end if;
+  select * into target_list from public.price_lists where id = p_price_list_id and is_active and archived_at is null;
+  if not found then raise exception using errcode = '22023', message = 'DEFAULT_PRICE_LIST_INVALID'; end if;
+  update public.pricing_configuration
+  set default_price_list_id = p_price_list_id, version = version + 1, updated_by = p_actor_id, updated_at = now()
+  where singleton;
+  insert into public.pricing_audit_events(action, actor_id, entity_type, entity_id, correlation_id, previous_state, new_state, reason)
+  values ('DEFAULT_PRICE_LIST_CHANGED', p_actor_id, 'pricing_configuration', p_price_list_id, p_correlation_id,
+    jsonb_build_object('default_price_list_id', current_configuration.default_price_list_id, 'version', current_configuration.version),
+    jsonb_build_object('default_price_list_id', p_price_list_id, 'version', current_configuration.version + 1), p_reason);
+  return jsonb_build_object('default_price_list_id', p_price_list_id, 'version', current_configuration.version + 1, 'correlation_id', p_correlation_id);
+end
+$$;
+
+create or replace function public.pricing_set_customer_type_mapping(
+  p_actor_id uuid,
+  p_customer_type_id uuid,
+  p_price_list_id uuid,
+  p_reason text default null,
+  p_correlation_id uuid default gen_random_uuid()
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare previous_mapping jsonb;
+begin
+  perform public.pricing_assert_admin(p_actor_id);
+  if not exists (select 1 from public.customer_types where id = p_customer_type_id and is_active) then
+    raise exception using errcode = '22023', message = 'PRICING_TARGET_INVALID';
+  end if;
+  if p_price_list_id is not null and not exists (select 1 from public.price_lists where id = p_price_list_id and is_active and archived_at is null) then
+    raise exception using errcode = '22023', message = 'DEFAULT_PRICE_LIST_INVALID';
+  end if;
+  select to_jsonb(mapping) into previous_mapping from public.customer_type_price_list_mappings mapping
+  where customer_type_id = p_customer_type_id and is_active and archived_at is null for update;
+  update public.customer_type_price_list_mappings
+    set is_active = false, archived_at = now(), updated_by = p_actor_id
+    where customer_type_id = p_customer_type_id and is_active and archived_at is null;
+  if p_price_list_id is not null then
+    insert into public.customer_type_price_list_mappings(customer_type_id, price_list_id, created_by, updated_by)
+    values (p_customer_type_id, p_price_list_id, p_actor_id, p_actor_id);
+  end if;
+  insert into public.pricing_audit_events(action, actor_id, entity_type, entity_id, correlation_id, previous_state, new_state, reason)
+  values ('CUSTOMER_TYPE_PRICE_LIST_MAPPED', p_actor_id, 'customer_type_mapping', p_customer_type_id, p_correlation_id,
+    previous_mapping, jsonb_build_object('customer_type_id', p_customer_type_id, 'price_list_id', p_price_list_id), p_reason);
+  return jsonb_build_object('customer_type_id', p_customer_type_id, 'price_list_id', p_price_list_id, 'correlation_id', p_correlation_id);
+end
+$$;
+
+create or replace function public.pricing_assign_customer_list(
+  p_actor_id uuid,
+  p_customer_id uuid,
+  p_price_list_id uuid,
+  p_reason text default null,
+  p_correlation_id uuid default gen_random_uuid()
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare previous_list_id uuid;
+begin
+  perform public.pricing_assert_admin(p_actor_id);
+  if p_price_list_id is not null and not exists (select 1 from public.price_lists where id = p_price_list_id and is_active and archived_at is null) then
+    raise exception using errcode = '22023', message = 'DEFAULT_PRICE_LIST_INVALID';
+  end if;
+  select direct_price_list_id into previous_list_id from public.customers where id = p_customer_id for update;
+  if not found then raise exception using errcode = 'P0002', message = 'CUSTOMER_NOT_FOUND'; end if;
+  update public.customers set direct_price_list_id = p_price_list_id, updated_at = now() where id = p_customer_id;
+  insert into public.customer_price_list_assignment_audit(customer_id, previous_price_list_id, new_price_list_id, actor_id, reason, correlation_id)
+  values (p_customer_id, previous_list_id, p_price_list_id, p_actor_id, p_reason, p_correlation_id);
+  insert into public.pricing_audit_events(action, actor_id, entity_type, entity_id, customer_id, correlation_id, previous_state, new_state, reason)
+  values ('CUSTOMER_PRICE_LIST_ASSIGNED', p_actor_id, 'customer_price_list_assignment', p_customer_id, p_customer_id, p_correlation_id,
+    jsonb_build_object('price_list_id', previous_list_id), jsonb_build_object('price_list_id', p_price_list_id), p_reason);
+  return jsonb_build_object('customer_id', p_customer_id, 'price_list_id', p_price_list_id, 'correlation_id', p_correlation_id);
+end
+$$;
+
+create or replace function public.pricing_bulk_upsert_items(
+  p_actor_id uuid,
+  p_price_list_id uuid,
+  p_items jsonb,
+  p_correlation_id uuid default gen_random_uuid()
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare item jsonb; inserted_count int := 0;
+begin
+  perform public.pricing_assert_admin(p_actor_id);
+  if jsonb_typeof(p_items) is distinct from 'array' or jsonb_array_length(p_items) = 0 then raise exception using errcode='22023',message='PRICING_TARGET_INVALID'; end if;
+  if not exists(select 1 from public.price_lists where id=p_price_list_id and is_active and archived_at is null) then raise exception using errcode='22023',message='DEFAULT_PRICE_LIST_INVALID'; end if;
+  for item in select value from jsonb_array_elements(p_items) loop
+    if coalesce((item->>'close_prior_at_start')::boolean,false) and item->>'valid_from' is not null then
+      update public.price_list_items set valid_until=(item->>'valid_from')::timestamptz,updated_by=p_actor_id
+      where price_list_id=p_price_list_id and variant_id=(item->>'variant_id')::uuid and sellable_unit_id=(item->>'sellable_unit_id')::uuid
+        and is_active and archived_at is null and valid_until is null and coalesce(valid_from,'-infinity'::timestamptz)<(item->>'valid_from')::timestamptz;
+    end if;
+    insert into public.price_list_items(price_list_id,variant_id,sellable_unit_id,amount_minor,valid_from,valid_until,created_by,updated_by)
+    values(p_price_list_id,(item->>'variant_id')::uuid,(item->>'sellable_unit_id')::uuid,(item->>'amount_minor')::bigint,(item->>'valid_from')::timestamptz,(item->>'valid_until')::timestamptz,p_actor_id,p_actor_id);
+    inserted_count := inserted_count + 1;
+  end loop;
+  insert into public.pricing_audit_events(action,actor_id,entity_type,entity_id,correlation_id,new_state)
+  values('PRICE_ENTRY_SCHEDULED',p_actor_id,'price_list',p_price_list_id,p_correlation_id,jsonb_build_object('item_count',inserted_count));
+  return jsonb_build_object('price_list_id',p_price_list_id,'saved',inserted_count,'correlation_id',p_correlation_id);
+end
+$$;
+
+create or replace function public.pricing_upsert_customer_override(
+  p_actor_id uuid,
+  p_customer_id uuid,
+  p_override jsonb,
+  p_correlation_id uuid default gen_random_uuid()
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare result public.customer_unit_price_overrides;
+begin
+  perform public.pricing_assert_admin(p_actor_id);
+  if not exists(select 1 from public.customers where id=p_customer_id) then raise exception using errcode='P0002',message='CUSTOMER_NOT_FOUND'; end if;
+  if coalesce((p_override->>'close_prior_at_start')::boolean,false) and p_override->>'valid_from' is not null then
+    update public.customer_unit_price_overrides set valid_until=(p_override->>'valid_from')::timestamptz,updated_by=p_actor_id
+    where customer_id=p_customer_id and variant_id=(p_override->>'variant_id')::uuid and sellable_unit_id=(p_override->>'sellable_unit_id')::uuid
+      and is_active and archived_at is null and valid_until is null and coalesce(valid_from,'-infinity'::timestamptz)<(p_override->>'valid_from')::timestamptz;
+  end if;
+  insert into public.customer_unit_price_overrides(customer_id,variant_id,sellable_unit_id,amount_minor,currency,valid_from,valid_until,reason,created_by,updated_by)
+  values(p_customer_id,(p_override->>'variant_id')::uuid,(p_override->>'sellable_unit_id')::uuid,(p_override->>'amount_minor')::bigint,'EGP',(p_override->>'valid_from')::timestamptz,(p_override->>'valid_until')::timestamptz,p_override->>'reason',p_actor_id,p_actor_id)
+  returning * into result;
+  insert into public.pricing_audit_events(action,actor_id,entity_type,entity_id,customer_id,variant_id,sellable_unit_id,correlation_id,new_state,reason)
+  values('CUSTOMER_PRICE_OVERRIDE_CHANGED',p_actor_id,'customer_unit_price_override',result.id,p_customer_id,result.variant_id,result.sellable_unit_id,p_correlation_id,jsonb_build_object('valid_from',result.valid_from,'valid_until',result.valid_until,'active',true),result.reason);
+  return jsonb_build_object('id',result.id,'customer_id',p_customer_id,'correlation_id',p_correlation_id);
+end
+$$;
+
+create or replace function public.pricing_create_order(p_order jsonb, p_items jsonb, p_grant_hash text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  result public.orders;
+  customer public.customers;
+  calculated_items_total bigint;
+  requested_items_total bigint := (p_order->>'items_total_minor')::bigint;
+  requested_shipping bigint := (p_order->>'shipping_cost_minor')::bigint;
+  requested_discount bigint := (p_order->>'discount_minor')::bigint;
+  requested_grand_total bigint := (p_order->>'grand_total_minor')::bigint;
+begin
+  if jsonb_typeof(p_items) is distinct from 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception using errcode = '22023', message = 'PRICE_UNAVAILABLE';
+  end if;
+  select sum(item.line_total_minor) into calculated_items_total
+  from jsonb_to_recordset(p_items) as item(unit_amount_minor bigint, line_total_minor bigint, quantity int);
+  if calculated_items_total is distinct from requested_items_total
+    or requested_grand_total <> greatest(0, requested_items_total + requested_shipping - requested_discount)
+    or requested_items_total < 0 or requested_shipping < 0 or requested_discount < 0
+    or exists (
+      select 1 from jsonb_to_recordset(p_items) as item(
+        variant_id uuid, sellable_unit_id uuid, quantity int, unit_amount_minor bigint, line_total_minor bigint,
+        currency text, pricing_source text, pricing_reference_id uuid, price_is_derived boolean
+      )
+      left join public.product_variants variant on variant.id = item.variant_id
+      left join public.variant_packaging_units unit on unit.id = item.sellable_unit_id and unit.variant_id = variant.id
+      left join public.products product on product.id = variant.product_id
+      where item.quantity <= 0 or item.unit_amount_minor <= 0 or item.line_total_minor <> item.unit_amount_minor * item.quantity
+        or item.currency <> 'EGP' or item.pricing_reference_id is null or item.price_is_derived is null
+        or item.pricing_source not in ('customer_override','direct_price_list','customer_type_price_list','default_price_list')
+        or variant.id is null or not variant.is_active or variant.archived_at is not null
+        or product.id is null or not product.is_active or product.archived_at is not null
+        or unit.id is null or not unit.is_active or unit.archived_at is not null or not unit.is_sellable
+    )
+  then
+    raise exception using errcode = '22023', message = 'PRICING_TARGET_INVALID';
+  end if;
+
+  if p_order->>'customer_id' is not null then
+    select * into strict customer from public.customers where id = (p_order->>'customer_id')::uuid for share;
+    if customer.auth_user_id is null or customer.auth_user_id is distinct from (p_order->>'user_id')::uuid
+      or length(trim(coalesce(customer.full_name, ''))) < 2 or coalesce(customer.phone, '') !~ '^01[0125][0-9]{8}$'
+    then raise exception using errcode = '22023', message = 'Invalid customer association'; end if;
+    if p_grant_hash is not null then raise exception using errcode = '22023', message = 'Unexpected guest grant'; end if;
+  elsif p_order->>'user_id' is not null or p_grant_hash is null or p_grant_hash !~ '^[a-f0-9]{64}$' then
+    raise exception using errcode = '22023', message = 'Invalid guest grant';
+  end if;
+
+  insert into public.orders(
+    order_number,user_id,customer_id,customer_name,customer_phone,alt_phone,governorate,city,address,notes,
+    items_total,shipping_cost,discount,discount_code,grand_total,payment_method,
+    items_total_minor,shipping_cost_minor,discount_minor,grand_total_minor,price_currency
+  ) values (
+    p_order->>'order_number',(p_order->>'user_id')::uuid,customer.id,p_order->>'customer_name',p_order->>'customer_phone',p_order->>'alt_phone',
+    p_order->>'governorate',p_order->>'city',p_order->>'address',p_order->>'notes',
+    requested_items_total / 100.0,requested_shipping / 100.0,requested_discount / 100.0,p_order->>'discount_code',requested_grand_total / 100.0,p_order->>'payment_method',
+    requested_items_total,requested_shipping,requested_discount,requested_grand_total,'EGP'
+  ) returning * into result;
+
+  insert into public.order_items(
+    order_id,product_id,variant_id,sellable_unit_id,sku,sellable_unit_code,name_en,name_ar,product_name_en,product_name_ar,
+    variant_label_en,variant_label_ar,unit_label_en,unit_label_ar,units_per_sold_package_num,units_per_sold_package_den,
+    base_quantity_per_unit_num,base_quantity_per_unit_den,equivalent_base_quantity_num,equivalent_base_quantity_den,
+    price,line_total,quantity,image,unit_price_minor,line_total_minor,price_currency,pricing_source,pricing_reference_id,
+    price_is_derived,derived_from_sellable_unit_id
+  )
+  select result.id,product.id,variant.id,unit.id,variant.sku,unit.code,product.name_en,product.name_ar,product.name_en,product.name_ar,
+    variant.label_en,variant.label_ar,unit.label_en,unit.label_ar,unit.quantity_per_parent_num,unit.quantity_per_parent_den,
+    unit.base_quantity_num,unit.base_quantity_den,unit.base_quantity_num * item.quantity,unit.base_quantity_den,
+    item.unit_amount_minor / 100.0,item.line_total_minor / 100.0,item.quantity,(product.images)[1],
+    item.unit_amount_minor,item.line_total_minor,item.currency,item.pricing_source,item.pricing_reference_id,
+    item.price_is_derived,item.derived_from_sellable_unit_id
+  from jsonb_to_recordset(p_items) as item(
+    variant_id uuid,sellable_unit_id uuid,quantity int,unit_amount_minor bigint,line_total_minor bigint,currency text,
+    pricing_source text,pricing_reference_id uuid,price_is_derived boolean,derived_from_sellable_unit_id uuid
+  )
+  join public.product_variants variant on variant.id = item.variant_id
+  join public.variant_packaging_units unit on unit.id = item.sellable_unit_id and unit.variant_id = variant.id
+  join public.products product on product.id = variant.product_id;
+
+  if customer.id is null then
+    insert into public.order_confirmation_grants(order_id,secret_hash,expires_at) values(result.id,p_grant_hash,now()+interval '30 days');
+  else
+    insert into public.customer_audit(customer_id,actor_id,action,details)
+    values(customer.id,customer.auth_user_id,'order.associated',jsonb_build_object('order_id',result.id));
+  end if;
+  return jsonb_build_object('id',result.id,'order_number',result.order_number,'grand_total',result.grand_total,'payment_method',result.payment_method);
+end
+$$;
+
+alter table public.price_lists enable row level security;
+alter table public.pricing_configuration enable row level security;
+alter table public.price_list_items enable row level security;
+alter table public.customer_type_price_list_mappings enable row level security;
+alter table public.customer_price_list_assignment_audit enable row level security;
+alter table public.customer_unit_price_overrides enable row level security;
+alter table public.pricing_audit_events enable row level security;
+
+revoke all on public.price_lists, public.pricing_configuration, public.price_list_items,
+  public.customer_type_price_list_mappings, public.customer_price_list_assignment_audit,
+  public.customer_unit_price_overrides, public.pricing_audit_events from public, anon, authenticated;
+grant select, insert, update on public.price_lists, public.pricing_configuration, public.price_list_items,
+  public.customer_type_price_list_mappings, public.customer_price_list_assignment_audit,
+  public.customer_unit_price_overrides, public.pricing_audit_events to service_role;
+
+revoke all on function public.pricing_assert_admin(uuid) from public, anon, authenticated;
+revoke all on function public.pricing_current_time() from public, anon, authenticated;
+revoke all on function public.pricing_resolve_targets(uuid,jsonb,timestamptz) from public, anon, authenticated;
+revoke all on function public.pricing_set_default(uuid,uuid,bigint,text,uuid) from public, anon, authenticated;
+revoke all on function public.pricing_set_customer_type_mapping(uuid,uuid,uuid,text,uuid) from public, anon, authenticated;
+revoke all on function public.pricing_assign_customer_list(uuid,uuid,uuid,text,uuid) from public, anon, authenticated;
+revoke all on function public.pricing_bulk_upsert_items(uuid,uuid,jsonb,uuid) from public, anon, authenticated;
+revoke all on function public.pricing_upsert_customer_override(uuid,uuid,jsonb,uuid) from public, anon, authenticated;
+revoke all on function public.pricing_create_order(jsonb,jsonb,text) from public, anon, authenticated;
+grant execute on function public.pricing_assert_admin(uuid) to service_role;
+grant execute on function public.pricing_current_time() to service_role;
+grant execute on function public.pricing_resolve_targets(uuid,jsonb,timestamptz) to service_role;
+grant execute on function public.pricing_set_default(uuid,uuid,bigint,text,uuid) to service_role;
+grant execute on function public.pricing_set_customer_type_mapping(uuid,uuid,uuid,text,uuid) to service_role;
+grant execute on function public.pricing_assign_customer_list(uuid,uuid,uuid,text,uuid) to service_role;
+grant execute on function public.pricing_bulk_upsert_items(uuid,uuid,jsonb,uuid) to service_role;
+grant execute on function public.pricing_upsert_customer_override(uuid,uuid,jsonb,uuid) to service_role;
+grant execute on function public.pricing_create_order(jsonb,jsonb,text) to service_role;
+
+notify pgrst, 'reload schema';
+
+-- Feature 005: authoritative B2B Commerce foundation.
+
+create extension if not exists "pgcrypto";
+
+create table if not exists public.commerce_quantity_rules (
+  id uuid primary key default gen_random_uuid(),
+  context_kind text not null check (context_kind in ('public','customer_type')),
+  customer_type_id uuid references public.customer_types(id) on delete restrict,
+  variant_id uuid not null references public.product_variants(id) on delete restrict,
+  sellable_unit_id uuid not null,
+  minimum_quantity integer not null check (minimum_quantity > 0),
+  quantity_increment integer not null check (quantity_increment > 0),
+  is_active boolean not null default true,
+  archived_at timestamptz,
+  created_by uuid references auth.users(id) on delete set null,
+  updated_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default transaction_timestamp(),
+  updated_at timestamptz not null default transaction_timestamp(),
+  constraint commerce_quantity_rules_unit_variant_fk
+    foreign key (sellable_unit_id, variant_id)
+    references public.variant_packaging_units(id, variant_id) on delete restrict,
+  constraint commerce_quantity_rules_context_check check (
+    (context_kind = 'public' and customer_type_id is null)
+    or (context_kind = 'customer_type' and customer_type_id is not null)
+  ),
+  constraint commerce_quantity_rules_lifecycle_check check (not is_active or archived_at is null)
+);
+
+create unique index if not exists commerce_quantity_rules_public_active_idx
+  on public.commerce_quantity_rules(variant_id, sellable_unit_id)
+  where context_kind = 'public' and is_active and archived_at is null;
+create unique index if not exists commerce_quantity_rules_customer_type_active_idx
+  on public.commerce_quantity_rules(customer_type_id, variant_id, sellable_unit_id)
+  where context_kind = 'customer_type' and is_active and archived_at is null;
+create index if not exists commerce_quantity_rules_target_idx
+  on public.commerce_quantity_rules(variant_id, sellable_unit_id, context_kind, customer_type_id)
+  where is_active and archived_at is null;
+
+create table if not exists public.quantity_rule_audit_events (
+  id uuid primary key default gen_random_uuid(),
+  rule_id uuid not null references public.commerce_quantity_rules(id) on delete restrict,
+  action text not null check (action in ('created','updated','activated','deactivated','archived')),
+  actor_user_id uuid references auth.users(id) on delete set null,
+  context_kind text not null check (context_kind in ('public','customer_type')),
+  customer_type_id uuid references public.customer_types(id) on delete set null,
+  variant_id uuid not null references public.product_variants(id) on delete restrict,
+  sellable_unit_id uuid not null references public.variant_packaging_units(id) on delete restrict,
+  previous_state jsonb,
+  new_state jsonb,
+  reason text check (reason is null or length(btrim(reason)) between 1 and 1000),
+  correlation_id uuid not null default gen_random_uuid(),
+  occurred_at timestamptz not null default transaction_timestamp()
+);
+create index if not exists quantity_rule_audit_target_idx
+  on public.quantity_rule_audit_events(variant_id, sellable_unit_id, occurred_at desc);
+create index if not exists quantity_rule_audit_correlation_idx
+  on public.quantity_rule_audit_events(correlation_id);
+
+create table if not exists public.checkout_quotes (
+  id uuid primary key default gen_random_uuid(),
+  scope_kind text not null check (scope_kind in ('customer','guest')),
+  customer_id uuid references public.customers(id) on delete restrict,
+  guest_context_hash text,
+  revision integer not null default 1 check (revision > 0),
+  state text not null default 'draft' check (state in ('draft','confirmed','consumed','expired')),
+  commercial_document jsonb not null,
+  safe_projection jsonb not null,
+  commercial_fingerprint text not null check (commercial_fingerprint ~ '^[a-f0-9]{64}$'),
+  confirmed_revision integer,
+  confirmed_fingerprint text check (confirmed_fingerprint is null or confirmed_fingerprint ~ '^[a-f0-9]{64}$'),
+  confirmed_at timestamptz,
+  expires_at timestamptz not null,
+  consumed_order_id uuid references public.orders(id) on delete restrict,
+  consumed_at timestamptz,
+  created_at timestamptz not null default transaction_timestamp(),
+  updated_at timestamptz not null default transaction_timestamp(),
+  constraint checkout_quotes_scope_check check (
+    (scope_kind = 'customer' and customer_id is not null and guest_context_hash is null)
+    or (scope_kind = 'guest' and customer_id is null and guest_context_hash ~ '^[a-f0-9]{64}$')
+  ),
+  constraint checkout_quotes_confirmation_check check (
+    (confirmed_revision is null and confirmed_fingerprint is null and confirmed_at is null)
+    or (confirmed_revision = revision and confirmed_fingerprint is not null and confirmed_at is not null)
+  ),
+  constraint checkout_quotes_consumption_check check (
+    (consumed_order_id is null and consumed_at is null)
+    or (consumed_order_id is not null and consumed_at is not null and state = 'consumed')
+  ),
+  constraint checkout_quotes_expiry_check check (expires_at > created_at)
+);
+create index if not exists checkout_quotes_customer_scope_idx
+  on public.checkout_quotes(customer_id, state, expires_at desc) where scope_kind = 'customer';
+create index if not exists checkout_quotes_guest_scope_idx
+  on public.checkout_quotes(guest_context_hash, state, expires_at desc) where scope_kind = 'guest';
+create index if not exists checkout_quotes_expiry_idx on public.checkout_quotes(state, expires_at);
+create unique index if not exists checkout_quotes_consumed_order_idx
+  on public.checkout_quotes(consumed_order_id) where consumed_order_id is not null;
+
+create table if not exists public.checkout_submissions (
+  id uuid primary key default gen_random_uuid(),
+  scope_kind text not null check (scope_kind in ('customer','guest')),
+  scope_hash text not null check (scope_hash ~ '^[a-f0-9]{64}$'),
+  submission_key uuid not null,
+  quote_id uuid not null references public.checkout_quotes(id) on delete restrict,
+  quote_revision integer not null check (quote_revision > 0),
+  payload_hash text not null check (payload_hash ~ '^[a-f0-9]{64}$'),
+  state text not null check (state in ('accepted','completed','failed_retryable')),
+  first_accepted_at timestamptz not null,
+  expires_at timestamptz not null,
+  order_id uuid references public.orders(id) on delete restrict,
+  last_error_code text check (last_error_code is null or last_error_code ~ '^[A-Z][A-Z0-9_]{1,79}$'),
+  created_at timestamptz not null default transaction_timestamp(),
+  updated_at timestamptz not null default transaction_timestamp(),
+  constraint checkout_submissions_expiry_check check (expires_at = first_accepted_at + interval '24 hours'),
+  constraint checkout_submissions_completion_check check (
+    (state = 'completed' and order_id is not null) or (state <> 'completed' and order_id is null)
+  )
+);
+create unique index if not exists checkout_submissions_scope_key_idx
+  on public.checkout_submissions(scope_hash, submission_key);
+create unique index if not exists checkout_submissions_order_idx
+  on public.checkout_submissions(order_id) where order_id is not null;
+create index if not exists checkout_submissions_expiry_idx
+  on public.checkout_submissions(expires_at, state);
+
+create table if not exists public.order_domain_events (
+  id uuid primary key default gen_random_uuid(),
+  correlation_id uuid not null,
+  order_id uuid not null references public.orders(id) on delete restrict,
+  event_type text not null check (event_type = 'order.created'),
+  event_version integer not null default 1 check (event_version = 1),
+  payload jsonb not null,
+  occurred_at timestamptz not null default transaction_timestamp()
+);
+create unique index if not exists order_domain_events_created_idx
+  on public.order_domain_events(order_id, event_type, event_version);
+create index if not exists order_domain_events_pending_idx
+  on public.order_domain_events(occurred_at, id);
+
+alter table public.orders add column if not exists commerce_snapshot_version smallint;
+alter table public.orders add column if not exists checkout_quote_id uuid references public.checkout_quotes(id) on delete restrict;
+alter table public.orders add column if not exists checkout_submission_id uuid references public.checkout_submissions(id) on delete restrict;
+alter table public.orders add column if not exists commercial_fingerprint text;
+alter table public.orders add column if not exists commerce_context_kind text;
+alter table public.orders add column if not exists customer_type_id_snapshot uuid references public.customer_types(id) on delete set null;
+alter table public.orders add column if not exists customer_type_code_snapshot text;
+alter table public.orders add column if not exists customer_type_name_en_snapshot text;
+alter table public.orders add column if not exists customer_type_name_ar_snapshot text;
+alter table public.orders add column if not exists currency text;
+alter table public.orders add column if not exists discount_snapshot jsonb;
+alter table public.orders add column if not exists shipping_snapshot jsonb;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conrelid='public.orders'::regclass and conname='orders_commerce_snapshot_integrity') then
+    alter table public.orders add constraint orders_commerce_snapshot_integrity check (
+      commerce_snapshot_version is null or (
+        commerce_snapshot_version = 1
+        and checkout_quote_id is not null and checkout_submission_id is not null
+        and commercial_fingerprint ~ '^[a-f0-9]{64}$'
+        and commerce_context_kind in ('public','customer_type')
+        and customer_type_code_snapshot is not null
+        and customer_type_name_en_snapshot is not null
+        and customer_type_name_ar_snapshot is not null
+        and currency = 'EGP'
+        and items_total_minor >= 0 and discount_minor >= 0 and shipping_cost_minor >= 0 and grand_total_minor >= 0
+        and discount_snapshot is not null and shipping_snapshot is not null
+      )
+    ) not valid;
+  end if;
+end $$;
+
+create unique index if not exists orders_checkout_quote_idx
+  on public.orders(checkout_quote_id) where checkout_quote_id is not null;
+create unique index if not exists orders_checkout_submission_idx
+  on public.orders(checkout_submission_id) where checkout_submission_id is not null;
+create index if not exists orders_fulfillment_created_idx
+  on public.orders(fulfillment_status, created_at desc);
+create index if not exists orders_payment_method_created_idx
+  on public.orders(payment_method, created_at desc);
+create index if not exists orders_customer_type_created_idx
+  on public.orders(customer_type_code_snapshot, created_at desc);
+
+alter table public.order_items add column if not exists quantity_rule_context_kind text;
+alter table public.order_items add column if not exists quantity_rule_customer_type_id uuid references public.customer_types(id) on delete set null;
+alter table public.order_items add column if not exists minimum_quantity_snapshot integer;
+alter table public.order_items add column if not exists quantity_increment_snapshot integer;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conrelid='public.order_items'::regclass and conname='order_items_quantity_snapshot_integrity') then
+    alter table public.order_items add constraint order_items_quantity_snapshot_integrity check (
+      (quantity_rule_context_kind is null and quantity_rule_customer_type_id is null
+        and minimum_quantity_snapshot is null and quantity_increment_snapshot is null)
+      or (
+        quantity_rule_context_kind in ('public','customer_type')
+        and minimum_quantity_snapshot > 0 and quantity_increment_snapshot > 0
+        and ((quantity_rule_context_kind = 'public' and quantity_rule_customer_type_id is null)
+          or (quantity_rule_context_kind = 'customer_type' and quantity_rule_customer_type_id is not null))
+      )
+    ) not valid;
+  end if;
+end $$;
+
+create index if not exists order_items_sku_order_idx on public.order_items(lower(sku), order_id) where sku is not null;
+
+create or replace function public.commerce_touch_updated_at()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  new.updated_at = transaction_timestamp();
+  return new;
+end
+$$;
+
+create or replace function public.commerce_confirm_quote(
+  p_scope_kind text,
+  p_customer_id uuid,
+  p_guest_context_hash text,
+  p_quote_id uuid,
+  p_revision integer
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  quote public.checkout_quotes%rowtype;
+begin
+  select * into quote
+  from public.checkout_quotes
+  where id = p_quote_id
+    and scope_kind = p_scope_kind
+    and customer_id is not distinct from p_customer_id
+    and guest_context_hash is not distinct from p_guest_context_hash
+  for update;
+  if not found then raise exception using errcode='P0002', message='QUOTE_NOT_FOUND'; end if;
+  if quote.expires_at <= transaction_timestamp() or quote.state = 'expired' then
+    raise exception using errcode='22023', message='QUOTE_EXPIRED';
+  end if;
+  if quote.state = 'consumed' then raise exception using errcode='22023', message='QUOTE_NOT_FOUND'; end if;
+  if quote.revision <> p_revision then raise exception using errcode='40001', message='QUOTE_REVISION_CONFLICT'; end if;
+  if quote.safe_projection->>'validationState' <> 'valid' then
+    raise exception using errcode='22023', message='QUOTE_INVALID';
+  end if;
+  update public.checkout_quotes set
+    state='confirmed', confirmed_revision=revision,
+    confirmed_fingerprint=commercial_fingerprint,
+    confirmed_at=transaction_timestamp(), updated_at=transaction_timestamp()
+  where id=quote.id
+  returning * into quote;
+  return jsonb_build_object(
+    'quoteId',quote.id,'revision',quote.revision,'state',quote.state,
+    'confirmedAt',quote.confirmed_at,'expiresAt',quote.expires_at
+  );
+end
+$$;
+
+create or replace function public.commerce_assert_admin(p_actor_id uuid)
+returns void language plpgsql stable security definer set search_path = '' as $$
+begin
+  if p_actor_id is null or not exists(select 1 from public.profiles where id=p_actor_id and is_admin) then
+    raise exception using errcode='42501',message='ADMIN_UNAUTHORIZED';
+  end if;
+end
+$$;
+
+create or replace function public.commerce_set_quantity_rule(
+  p_actor_id uuid,
+  p_context_kind text,
+  p_customer_type_id uuid,
+  p_variant_id uuid,
+  p_sellable_unit_id uuid,
+  p_minimum_quantity integer,
+  p_quantity_increment integer,
+  p_reason text,
+  p_correlation_id uuid default gen_random_uuid()
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare previous public.commerce_quantity_rules%rowtype; created public.commerce_quantity_rules%rowtype;
+begin
+  perform public.commerce_assert_admin(p_actor_id);
+  if p_context_kind not in ('public','customer_type') or p_minimum_quantity<=0 or p_quantity_increment<=0
+    or length(btrim(coalesce(p_reason,''))) not between 1 and 1000
+    or (p_context_kind='public' and p_customer_type_id is not null)
+    or (p_context_kind='customer_type' and not exists(select 1 from public.customer_types where id=p_customer_type_id and is_active))
+    or not exists(select 1 from public.variant_packaging_units where id=p_sellable_unit_id and variant_id=p_variant_id and is_active and archived_at is null and is_sellable)
+  then raise exception using errcode='22023',message='QUANTITY_RULE_INVALID'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_context_kind||':'||coalesce(p_customer_type_id::text,'public')||':'||p_variant_id||':'||p_sellable_unit_id,0));
+  select * into previous from public.commerce_quantity_rules where context_kind=p_context_kind
+    and customer_type_id is not distinct from p_customer_type_id and variant_id=p_variant_id and sellable_unit_id=p_sellable_unit_id
+    and is_active and archived_at is null for update;
+  if found then
+    update public.commerce_quantity_rules set is_active=false,archived_at=transaction_timestamp(),updated_by=p_actor_id where id=previous.id;
+    insert into public.quantity_rule_audit_events(rule_id,action,actor_user_id,context_kind,customer_type_id,variant_id,sellable_unit_id,previous_state,new_state,reason,correlation_id)
+    values(previous.id,'deactivated',p_actor_id,previous.context_kind,previous.customer_type_id,previous.variant_id,previous.sellable_unit_id,
+      jsonb_build_object('minimumQuantity',previous.minimum_quantity,'quantityIncrement',previous.quantity_increment,'active',true),jsonb_build_object('active',false),p_reason,p_correlation_id);
+  end if;
+  insert into public.commerce_quantity_rules(context_kind,customer_type_id,variant_id,sellable_unit_id,minimum_quantity,quantity_increment,created_by,updated_by)
+  values(p_context_kind,p_customer_type_id,p_variant_id,p_sellable_unit_id,p_minimum_quantity,p_quantity_increment,p_actor_id,p_actor_id) returning * into created;
+  insert into public.quantity_rule_audit_events(rule_id,action,actor_user_id,context_kind,customer_type_id,variant_id,sellable_unit_id,previous_state,new_state,reason,correlation_id)
+  values(created.id,'created',p_actor_id,created.context_kind,created.customer_type_id,created.variant_id,created.sellable_unit_id,null,
+    jsonb_build_object('minimumQuantity',created.minimum_quantity,'quantityIncrement',created.quantity_increment,'active',true),p_reason,p_correlation_id);
+  return jsonb_build_object('id',created.id,'replacedRuleId',previous.id,'correlationId',p_correlation_id);
+end
+$$;
+
+create or replace function public.commerce_archive_quantity_rule(
+  p_actor_id uuid,p_rule_id uuid,p_reason text,p_correlation_id uuid default gen_random_uuid()
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare previous public.commerce_quantity_rules%rowtype;
+begin
+  perform public.commerce_assert_admin(p_actor_id);
+  if length(btrim(coalesce(p_reason,''))) not between 1 and 1000 then raise exception using errcode='22023',message='QUANTITY_RULE_INVALID'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_rule_id::text,0));
+  select * into previous from public.commerce_quantity_rules where id=p_rule_id and is_active and archived_at is null for update;
+  if not found then raise exception using errcode='P0002',message='QUANTITY_RULE_NOT_FOUND'; end if;
+  update public.commerce_quantity_rules set is_active=false,archived_at=transaction_timestamp(),updated_by=p_actor_id where id=p_rule_id;
+  insert into public.quantity_rule_audit_events(rule_id,action,actor_user_id,context_kind,customer_type_id,variant_id,sellable_unit_id,previous_state,new_state,reason,correlation_id)
+  values(previous.id,'archived',p_actor_id,previous.context_kind,previous.customer_type_id,previous.variant_id,previous.sellable_unit_id,
+    jsonb_build_object('minimumQuantity',previous.minimum_quantity,'quantityIncrement',previous.quantity_increment,'active',true),jsonb_build_object('active',false),p_reason,p_correlation_id);
+  return jsonb_build_object('id',p_rule_id,'correlationId',p_correlation_id);
+end
+$$;
+
+create or replace function public.commerce_finalize_order(
+  p_scope_kind text,
+  p_customer_id uuid,
+  p_guest_context_hash text,
+  p_quote_id uuid,
+  p_quote_revision integer,
+  p_submission_key uuid,
+  p_payload_hash text,
+  p_correlation_id uuid,
+  p_confirmation_grant_hash text default null
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  quote public.checkout_quotes%rowtype;
+  submission public.checkout_submissions%rowtype;
+  created_order public.orders%rowtype;
+  document jsonb;
+  now_at timestamptz := transaction_timestamp();
+  generated_number text;
+  customer_user_id uuid;
+  current_prices jsonb;
+begin
+  if p_scope_kind not in ('customer','guest') or p_payload_hash !~ '^[a-f0-9]{64}$' then
+    raise exception using errcode='22023',message='CHECKOUT_UNAVAILABLE';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_scope_kind||':'||coalesce(p_customer_id::text,p_guest_context_hash)||':'||p_submission_key::text,0));
+
+  select * into submission from public.checkout_submissions
+  where scope_hash = encode(extensions.digest(p_scope_kind||':'||coalesce(p_customer_id::text,p_guest_context_hash),'sha256'),'hex')
+    and submission_key=p_submission_key;
+  if found and submission.expires_at>now_at then
+    if submission.payload_hash<>p_payload_hash then raise exception using errcode='22023',message='IDEMPOTENCY_CONFLICT'; end if;
+    if submission.state='completed' and submission.order_id is not null then
+      select * into created_order from public.orders where id=submission.order_id;
+      return jsonb_build_object('kind','replayed','orderId',created_order.id,'orderNumber',created_order.order_number,
+        'grandTotalMinor',created_order.grand_total_minor::text,'paymentMethod',created_order.payment_method,'customerName',created_order.customer_name);
+    end if;
+  elsif found then
+    delete from public.checkout_submissions where id=submission.id and order_id is null;
+  end if;
+
+  select * into quote from public.checkout_quotes
+  where id=p_quote_id and scope_kind=p_scope_kind
+    and customer_id is not distinct from p_customer_id
+    and guest_context_hash is not distinct from p_guest_context_hash
+  for update;
+  if not found then raise exception using errcode='P0002',message='QUOTE_NOT_FOUND'; end if;
+  if quote.expires_at<=now_at then raise exception using errcode='22023',message='QUOTE_EXPIRED'; end if;
+  if quote.state<>'confirmed' or quote.confirmed_revision<>p_quote_revision or quote.revision<>p_quote_revision
+    or quote.confirmed_fingerprint is distinct from quote.commercial_fingerprint then
+    raise exception using errcode='40001',message='QUOTE_REVISION_CONFLICT';
+  end if;
+  document := quote.commercial_document;
+  if jsonb_array_length(document->'lines')=0 then raise exception using errcode='22023',message='QUOTE_INVALID'; end if;
+
+  select public.pricing_resolve_targets(
+    p_customer_id,
+    jsonb_agg(jsonb_build_object('variantId',line->>'variantId','sellableUnitId',line->>'sellableUnitId') order by ordinality),
+    now_at
+  ) into current_prices
+  from jsonb_array_elements(document->'lines') with ordinality as source(line,ordinality);
+  if exists (
+    select 1
+    from jsonb_array_elements(document->'lines') line
+    left join lateral (
+      select price from jsonb_array_elements(current_prices) price
+      where price->>'variantId'=line->>'variantId' and price->>'sellableUnitId'=line->>'sellableUnitId' limit 1
+    ) resolved on true
+    left join public.product_variants variant on variant.id=(line->>'variantId')::uuid
+    left join public.products product on product.id=variant.product_id
+    left join public.variant_packaging_units unit on unit.id=(line->>'sellableUnitId')::uuid and unit.variant_id=variant.id
+    left join lateral (
+      select rule.minimum_quantity,rule.quantity_increment from public.commerce_quantity_rules rule
+      where rule.context_kind=document#>>'{context,contextKind}'
+        and rule.customer_type_id is not distinct from nullif(document#>>'{context,customerTypeId}','')::uuid
+        and rule.variant_id=variant.id and rule.sellable_unit_id=unit.id and rule.is_active and rule.archived_at is null limit 1
+    ) active_rule on true
+    where resolved.price->>'availability' is distinct from 'priced'
+      or resolved.price->>'amountMinor' is distinct from line->>'unitAmountMinor'
+      or variant.id is null or not variant.is_active or variant.archived_at is not null
+      or product.id is null or not product.is_active or product.archived_at is not null
+      or unit.id is null or not unit.is_active or unit.archived_at is not null or not unit.is_sellable
+      or coalesce(active_rule.minimum_quantity,1) is distinct from (line#>>'{quantityRule,minimum}')::integer
+      or coalesce(active_rule.quantity_increment,1) is distinct from (line#>>'{quantityRule,increment}')::integer
+      or (line->>'quantity')::integer < coalesce(active_rule.minimum_quantity,1)
+      or ((line->>'quantity')::integer-coalesce(active_rule.minimum_quantity,1)) % coalesce(active_rule.quantity_increment,1) <> 0
+  ) or (
+    p_customer_id is not null and not exists (
+      select 1 from public.customers customer where customer.id=p_customer_id
+        and customer.customer_type_id is not distinct from nullif(document#>>'{context,customerTypeId}','')::uuid
+        and customer.direct_price_list_id is not distinct from nullif(document#>>'{context,directPriceListId}','')::uuid
+    )
+  ) then
+    raise exception using errcode='40001',message='RECONFIRMATION_REQUIRED';
+  end if;
+
+  insert into public.checkout_submissions(
+    scope_kind,scope_hash,submission_key,quote_id,quote_revision,payload_hash,state,first_accepted_at,expires_at
+  ) values (
+    p_scope_kind,encode(extensions.digest(p_scope_kind||':'||coalesce(p_customer_id::text,p_guest_context_hash),'sha256'),'hex'),
+    p_submission_key,p_quote_id,p_quote_revision,p_payload_hash,'accepted',now_at,now_at+interval '24 hours'
+  ) returning * into submission;
+
+  if p_customer_id is not null then
+    select auth_user_id into customer_user_id from public.customers where id=p_customer_id for share;
+    if not found then raise exception using errcode='P0002',message='QUOTE_NOT_FOUND'; end if;
+    if p_confirmation_grant_hash is not null then raise exception using errcode='22023',message='CHECKOUT_UNAVAILABLE'; end if;
+  elsif p_confirmation_grant_hash is null or p_confirmation_grant_hash !~ '^[a-f0-9]{64}$' then
+    raise exception using errcode='22023',message='CHECKOUT_UNAVAILABLE';
+  end if;
+
+  generated_number := 'KF-'||upper(substr(encode(extensions.gen_random_bytes(6),'hex'),1,6))||'-'||to_char(now_at,'YYMMDD');
+  insert into public.orders(
+    order_number,user_id,customer_id,customer_name,customer_phone,alt_phone,governorate,city,address,notes,
+    items_total,shipping_cost,discount,discount_code,grand_total,payment_method,
+    items_total_minor,shipping_cost_minor,discount_minor,grand_total_minor,price_currency,
+    commerce_snapshot_version,checkout_quote_id,checkout_submission_id,commercial_fingerprint,
+    commerce_context_kind,customer_type_id_snapshot,customer_type_code_snapshot,customer_type_name_en_snapshot,
+    customer_type_name_ar_snapshot,currency,discount_snapshot,shipping_snapshot
+  ) values (
+    generated_number,customer_user_id,p_customer_id,document#>>'{delivery,fullName}',document#>>'{delivery,phone}',
+    coalesce(document#>>'{delivery,altPhone}',''),document#>>'{delivery,governorate}',document#>>'{delivery,city}',
+    document#>>'{delivery,address}',document->>'notes',
+    (document->>'subtotalMinor')::bigint/100.0,(document->>'shippingMinor')::bigint/100.0,
+    (document->>'discountMinor')::bigint/100.0,document->>'discountCode',(document->>'totalMinor')::bigint/100.0,
+    document->>'paymentMethod',(document->>'subtotalMinor')::bigint,(document->>'shippingMinor')::bigint,
+    (document->>'discountMinor')::bigint,(document->>'totalMinor')::bigint,'EGP',
+    1,quote.id,submission.id,quote.commercial_fingerprint,document#>>'{context,contextKind}',
+    nullif(document#>>'{context,customerTypeId}','')::uuid,document#>>'{context,customerTypeCode}',
+    document#>>'{context,customerTypeNameEn}',document#>>'{context,customerTypeNameAr}','EGP',
+    coalesce(document->'adjustments','[]'::jsonb),coalesce(document->'shipping','{}'::jsonb)
+  ) returning * into created_order;
+
+  insert into public.order_items(
+    order_id,product_id,variant_id,sellable_unit_id,sku,sellable_unit_code,name_en,name_ar,
+    product_name_en,product_name_ar,variant_label_en,variant_label_ar,unit_label_en,unit_label_ar,
+    base_quantity_per_unit_num,base_quantity_per_unit_den,equivalent_base_quantity_num,equivalent_base_quantity_den,
+    price,line_total,quantity,image,unit_price_minor,line_total_minor,price_currency,pricing_source,
+    pricing_reference_id,price_is_derived,derived_from_sellable_unit_id,quantity_rule_context_kind,
+    quantity_rule_customer_type_id,minimum_quantity_snapshot,quantity_increment_snapshot
+  )
+  select created_order.id,(line->>'productId')::uuid,(line->>'variantId')::uuid,(line->>'sellableUnitId')::uuid,
+    line->>'sku',line->>'unitCode',line->>'productNameEn',line->>'productNameAr',line->>'productNameEn',line->>'productNameAr',
+    line->>'variantLabelEn',line->>'variantLabelAr',line->>'unitLabelEn',line->>'unitLabelAr',
+    (line->>'baseQuantityNumerator')::numeric,(line->>'baseQuantityDenominator')::numeric,
+    (line->>'baseQuantityNumerator')::numeric*(line->>'quantity')::integer,(line->>'baseQuantityDenominator')::numeric,
+    (line->>'unitAmountMinor')::bigint/100.0,(line->>'lineAmountMinor')::bigint/100.0,(line->>'quantity')::integer,null,
+    (line->>'unitAmountMinor')::bigint,(line->>'lineAmountMinor')::bigint,'EGP',line#>>'{price,source}',
+    (line#>>'{price,referenceId}')::uuid,(line#>>'{price,resolutionKind}')='derived',
+    nullif(line#>>'{price,derivedFromUnitId}','')::uuid,line#>>'{quantityRule,contextKind}',
+    nullif(line#>>'{quantityRule,customerTypeId}','')::uuid,(line#>>'{quantityRule,minimum}')::integer,
+    (line#>>'{quantityRule,increment}')::integer
+  from jsonb_array_elements(document->'lines') line;
+
+  if p_customer_id is null then
+    insert into public.order_confirmation_grants(order_id,secret_hash,expires_at)
+    values(created_order.id,p_confirmation_grant_hash,now_at+interval '30 days');
+  else
+    insert into public.customer_audit(customer_id,actor_id,action,details)
+    values(p_customer_id,customer_user_id,'order.associated',jsonb_build_object('order_id',created_order.id));
+  end if;
+  insert into public.order_domain_events(id,correlation_id,order_id,event_type,event_version,payload,occurred_at)
+  values(gen_random_uuid(),p_correlation_id,created_order.id,'order.created',1,
+    jsonb_build_object('orderId',created_order.id,'orderNumber',created_order.order_number,'commerceSnapshotVersion',1),now_at);
+  update public.checkout_quotes set state='consumed',consumed_order_id=created_order.id,consumed_at=now_at,updated_at=now_at where id=quote.id;
+  update public.checkout_submissions set state='completed',order_id=created_order.id,updated_at=now_at where id=submission.id;
+  return jsonb_build_object('kind','created','orderId',created_order.id,'orderNumber',created_order.order_number,
+    'grandTotalMinor',created_order.grand_total_minor::text,'paymentMethod',created_order.payment_method,'customerName',created_order.customer_name);
+end
+$$;
+
+drop trigger if exists commerce_quantity_rules_touch on public.commerce_quantity_rules;
+create trigger commerce_quantity_rules_touch before update on public.commerce_quantity_rules
+  for each row execute function public.commerce_touch_updated_at();
+drop trigger if exists checkout_quotes_touch on public.checkout_quotes;
+create trigger checkout_quotes_touch before update on public.checkout_quotes
+  for each row execute function public.commerce_touch_updated_at();
+drop trigger if exists checkout_submissions_touch on public.checkout_submissions;
+create trigger checkout_submissions_touch before update on public.checkout_submissions
+  for each row execute function public.commerce_touch_updated_at();
+
+alter table public.commerce_quantity_rules enable row level security;
+alter table public.quantity_rule_audit_events enable row level security;
+alter table public.checkout_quotes enable row level security;
+alter table public.checkout_submissions enable row level security;
+alter table public.order_domain_events enable row level security;
+
+revoke all on public.commerce_quantity_rules, public.quantity_rule_audit_events,
+  public.checkout_quotes, public.checkout_submissions, public.order_domain_events
+  from public, anon, authenticated;
+grant select, insert, update on public.commerce_quantity_rules to service_role;
+grant select, insert on public.quantity_rule_audit_events to service_role;
+grant select, insert, update on public.checkout_quotes to service_role;
+grant select, insert, update, delete on public.checkout_submissions to service_role;
+grant select, insert on public.order_domain_events to service_role;
+
+revoke all on function public.commerce_touch_updated_at() from public, anon, authenticated;
+revoke all on function public.commerce_assert_admin(uuid) from public, anon, authenticated;
+revoke all on function public.commerce_set_quantity_rule(uuid,text,uuid,uuid,uuid,integer,integer,text,uuid) from public, anon, authenticated;
+revoke all on function public.commerce_archive_quantity_rule(uuid,uuid,text,uuid) from public, anon, authenticated;
+revoke all on function public.commerce_confirm_quote(text,uuid,text,uuid,integer) from public, anon, authenticated;
+revoke all on function public.commerce_finalize_order(text,uuid,text,uuid,integer,uuid,text,uuid,text) from public, anon, authenticated;
+grant execute on function public.commerce_touch_updated_at() to service_role;
+grant execute on function public.commerce_assert_admin(uuid) to service_role;
+grant execute on function public.commerce_set_quantity_rule(uuid,text,uuid,uuid,uuid,integer,integer,text,uuid) to service_role;
+grant execute on function public.commerce_archive_quantity_rule(uuid,uuid,text,uuid) to service_role;
+grant execute on function public.commerce_confirm_quote(text,uuid,text,uuid,integer) to service_role;
+grant execute on function public.commerce_finalize_order(text,uuid,text,uuid,integer,uuid,text,uuid,text) to service_role;
 
 notify pgrst, 'reload schema';

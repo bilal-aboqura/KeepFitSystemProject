@@ -72,11 +72,14 @@ export async function PUT(
 
   const { data: order } = await supabase
     .from("orders")
-    .select("id, governorate, city, payment_method, discount_code, order_items(id, product_id, variant_id, sellable_unit_id, sku, sellable_unit_code, name_en, name_ar, product_name_en, product_name_ar, variant_label_en, variant_label_ar, unit_label_en, unit_label_ar, units_per_sold_package_num, units_per_sold_package_den, base_quantity_per_unit_num, base_quantity_per_unit_den, equivalent_base_quantity_num, equivalent_base_quantity_den, price, unit_price_minor, image)")
+    .select("id, commerce_snapshot_version, governorate, city, payment_method, discount_code, order_items(id, product_id, variant_id, sellable_unit_id, sku, sellable_unit_code, name_en, name_ar, product_name_en, product_name_ar, variant_label_en, variant_label_ar, unit_label_en, unit_label_ar, units_per_sold_package_num, units_per_sold_package_den, base_quantity_per_unit_num, base_quantity_per_unit_den, equivalent_base_quantity_num, equivalent_base_quantity_den, price, unit_price_minor, image)")
     .eq("id", id)
     .maybeSingle();
   if (!order) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+  if (order.commerce_snapshot_version !== null) {
+    return NextResponse.json({ error: "Authoritative snapshot orders cannot have their commercial lines replaced." }, { status: 409 });
   }
 
   const existingLines = new Map(

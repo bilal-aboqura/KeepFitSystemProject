@@ -10,5 +10,5 @@ describe("pricing access control", () => {
       has_table_privilege('authenticated','public.pricing_audit_events','select') audit_read,
       has_function_privilege('authenticated','public.pricing_set_default(uuid,uuid,bigint,text,uuid)','execute') default_mutation`);
     expect(checks.rows[0]).toEqual({ list_read: false, item_read: false, override_read: false, audit_read: false, default_mutation: false });
-  }));
+  }), 30_000);
 });

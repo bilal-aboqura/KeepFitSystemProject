@@ -19,12 +19,15 @@ import {
   BadgePercent,
 } from "lucide-react";
 import { useLang } from "@/components/language/provider";
-import { useCart, clearCart, repriceCart } from "@/lib/cart";
+import { useCart, clearCart } from "@/lib/cart";
 import { calcItemsSubtotal, calcOnlinePaymentDiscount } from "@/lib/pricing/legacy-adjustments";
 import { formatPrice } from "@/lib/utils";
 import type { GovernorateOption } from "@/lib/data/locations";
 import { useShippingQuote } from "@/components/storefront/use-shipping-quote";
 import type { CustomerAddress } from "@/lib/customers/types";
+import { CheckoutQuoteReview, confirmAndSubmitCheckout, requestCheckoutQuote, type PersistedCheckoutQuote } from "@/components/storefront/checkout-form";
+import { QuoteChangeAlert } from "@/components/storefront/quote-change-alert";
+import type { CommerceChange } from "@/lib/commerce/types";
 
 
 interface BumpProduct {
@@ -68,6 +71,9 @@ export default function CheckoutPage() {
   const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
   const [bumpProduct, setBumpProduct] = useState<BumpProduct | null>(null);
   const [freeShippingThreshold, setFreeShippingThreshold] = useState(600);
+  const [serverQuote, setServerQuote] = useState<PersistedCheckoutQuote | null>(null);
+  const [submissionId] = useState(() => crypto.randomUUID());
+  const [quoteChanges, setQuoteChanges] = useState<CommerceChange[]>([]);
 
   const subtotal = calcItemsSubtotal(items);
   const bumpTotal = bumpAdded && bumpProduct ? bumpProduct.bumpPrice : 0;
@@ -132,8 +138,11 @@ export default function CheckoutPage() {
     : shippingLoading ? (ar ? "جاري حساب الشحن…" : "Calculating shipping…")
     : shippingError ? (ar ? "تعذر حساب الشحن" : "Shipping unavailable")
     : freeShipping ? (ar ? "مجاني" : "Free") : formatPrice(effectiveShipping, lang);
-  const totalText = quoteReady ? formatPrice(total, lang) : (ar ? "بانتظار حساب الشحن" : "Awaiting shipping quote");
-  const submitLabel = form.payment_method === "cod"
+  const authoritativeTotal = serverQuote ? Number(serverQuote.totalMinor) / 100 : null;
+  const totalText = authoritativeTotal !== null ? formatPrice(authoritativeTotal, lang) : quoteReady ? formatPrice(total, lang) : (ar ? "بانتظار حساب الشحن" : "Awaiting shipping quote");
+  const submitLabel = serverQuote
+    ? (ar ? "أؤكد السعر والشحن وأطلب الآن" : "Confirm price and shipping — place order")
+    : form.payment_method === "cod"
     ? (ar ? "تأكيد الطلب — الدفع عند الاستلام" : "Confirm — pay on delivery")
     : (ar ? "المتابعة للدفع بالبطاقة" : "Continue to card payment");
   const bumpDesc = bumpProduct
@@ -142,9 +151,10 @@ export default function CheckoutPage() {
   const duplicatePhones = Boolean(form.customer_phone && form.alt_phone && form.customer_phone === form.alt_phone);
   const selectedAddress = savedAddresses.find((address) => address.id === selectedAddressId);
 
-  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) { setForm((f) => ({ ...f, [key]: value })); }
+  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) { setServerQuote(null); setForm((f) => ({ ...f, [key]: value })); }
 
   function selectSavedAddress(id: string) {
+    setServerQuote(null);
     setSelectedAddressId(id);
     const address = savedAddresses.find((candidate) => candidate.id === id);
     if (!address) return;
@@ -161,6 +171,7 @@ export default function CheckoutPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setQuoteChanges([]);
     if (items.length === 0) { setError(ar ? "السلة فارغة." : "Your cart is empty."); return; }
     if (!quoteReady || submitting) return;
     if (!PHONE_PATTERN.test(form.customer_phone) || !PHONE_PATTERN.test(form.alt_phone)) {
@@ -176,28 +187,38 @@ export default function CheckoutPage() {
       if (items.some((item) => !item.variant_id || !item.sellable_unit_id)) {
         throw new Error(ar ? "أعد اختيار المنتجات القديمة قبل الدفع." : "Choose any legacy cart products again before checkout.");
       }
-      const orderItems: { variant_id: string; sellable_unit_id: string; quantity: number }[] =
-        items.map((i) => ({ variant_id: i.variant_id!, sellable_unit_id: i.sellable_unit_id!, quantity: i.quantity }));
+      const orderItems: { variantId: string; sellableUnitId: string; quantity: number }[] =
+        items.map((i) => ({ variantId: i.variant_id!, sellableUnitId: i.sellable_unit_id!, quantity: i.quantity }));
       if (bumpAdded && bumpProduct) {
         orderItems.push({
-          variant_id: bumpProduct.variant_id,
-          sellable_unit_id: bumpProduct.sellable_unit_id,
+          variantId: bumpProduct.variant_id,
+          sellableUnitId: bumpProduct.sellable_unit_id,
           quantity: 1,
         });
       }
-      const payload = { ...form, items: orderItems };
-      const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const data = await res.json();
-      if (!res.ok && data.redirect === "/account/complete-profile") { router.push("/account/complete-profile?next=%2Fcheckout"); return; }
-      if (!res.ok && (data.code === "PRICE_CHANGED" || data.code === "PRICE_UNAVAILABLE")) {
-        await repriceCart(items).catch(() => undefined);
-        throw new Error(data.code === "PRICE_CHANGED" ? t.cart.priceChanged : t.product.pricing.unavailable);
+      if (!serverQuote) {
+        const quote = await requestCheckoutQuote({
+          lines: orderItems,
+          delivery: selectedAddressId ? { savedAddressId: selectedAddressId } : { address: { fullName: form.customer_name, phone: form.customer_phone, altPhone: form.alt_phone, governorate: form.governorate, city: form.city, address: form.address } },
+          contact: null,
+          paymentMethod: form.payment_method,
+          discountCode: form.discount_code || null,
+          notes: form.notes || null,
+        });
+        setServerQuote(quote);
+        return;
       }
-      if (!res.ok) throw new Error(data.error || "Order failed");
+      if (serverQuote.validationState !== "valid") throw new Error(ar ? "صحح عناصر الطلب قبل التأكيد." : "Correct the checkout items before confirming.");
+      const data = await confirmAndSubmitCheckout(serverQuote, submissionId);
       if (form.payment_method === "card" && data.redirect?.startsWith("http")) { clearCart(); window.location.href = data.redirect; return; }
       clearCart();
-      router.push(data.redirect ?? `/checkout/success?order=${data.order_number}`);
+      router.push(data.redirect ?? `/checkout/success?order=${data.orderNumber}`);
     } catch (err) {
+      const commerceError = err as Error & { code?: string; quote?: PersistedCheckoutQuote; changes?: CommerceChange[] };
+      if (commerceError.code === "RECONFIRMATION_REQUIRED" && commerceError.quote) {
+        setServerQuote(commerceError.quote);
+        setQuoteChanges(commerceError.changes ?? []);
+      }
       setError(err instanceof Error ? err.message : ar ? "حدث خطأ" : "An error occurred");
     } finally { setSubmitting(false); }
   }
@@ -366,7 +387,7 @@ export default function CheckoutPage() {
 
           {bumpProduct && (
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface p-4 lg:hidden">
-              <input type="checkbox" checked={bumpAdded} onChange={(event) => setBumpAdded(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-brand" />
+              <input type="checkbox" checked={bumpAdded} onChange={(event) => { setServerQuote(null); setBumpAdded(event.target.checked); }} className="mt-1 h-5 w-5 shrink-0 accent-brand" />
               <span className="text-sm">
                 <span className="block font-semibold">{ar ? `أضف ${bumpProduct.name_ar} (اختياري)` : `Add ${bumpProduct.name_en} (optional)`}</span>
                 <span className="mt-1 block font-bold text-brand">{formatPrice(bumpProduct.bumpPrice, lang)}</span>
@@ -435,7 +456,7 @@ export default function CheckoutPage() {
 
           {/* Order bump — only show if bump product was resolved from DB */}
           {bumpProduct && (
-            <div className={`mt-5 cursor-pointer p-4 ${bumpAdded ? "bump-card bump-card-active" : "bump-card"}`} onClick={() => setBumpAdded((v) => !v)}>
+            <div className={`mt-5 cursor-pointer p-4 ${bumpAdded ? "bump-card bump-card-active" : "bump-card"}`} onClick={() => { setServerQuote(null); setBumpAdded((v) => !v); }}>
               <div className="flex items-start gap-3">
                 <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${bumpAdded ? "border-gold bg-gold text-black" : "border-border"}`}>
                   {bumpAdded && <Check size={12} />}
@@ -458,6 +479,8 @@ export default function CheckoutPage() {
           )}
 
           {error && <p className="mt-4 rounded-xl border border-brand/20 bg-brand/5 px-4 py-2.5 text-sm text-brand-soft">{error}</p>}
+          {serverQuote && <CheckoutQuoteReview quote={serverQuote} language={lang} />}
+          {quoteChanges.length > 0 && <QuoteChangeAlert changes={quoteChanges} lang={lang} />}
 
           <button type="submit" disabled={submitting || !quoteReady} className="btn btn-primary mt-6 w-full gap-2">
             {submitting ? <><Loader2 size={16} className="animate-spin" /> {ar ? "جارٍ المعالجة..." : "Processing..."}</> : <><ShieldCheck size={16} /> {submitLabel}</>}

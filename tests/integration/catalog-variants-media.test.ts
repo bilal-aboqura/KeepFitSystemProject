@@ -81,4 +81,45 @@ describe("Feature 003 catalog contract", () => {
     await expect(db.query("insert into product_variants(product_id,sku,base_price,stock,combination_fingerprint) values($1,$2,1,1,'x')", [created.product_id, `DENIED-${randomUUID()}`])).rejects.toBeTruthy();
     await db.query("rollback to customer_write");
   }), 30_000);
+
+  it.skipIf(!process.env.DIRECT_URL)("keeps Box and Ampoule sellable identities distinct and rejects ambiguous legacy selection", async () => withTestDatabase(async (db) => {
+    await db.query(await readFile("supabase/migrations/003_catalog_variants_media.sql", "utf8"));
+    await db.query(await readFile("supabase/migrations/003b_catalog_packaging_units.sql", "utf8"));
+    const suffix = randomUUID().replaceAll("-", "");
+    const categoryId = randomUUID();
+    await db.query("insert into categories(id,slug,name_en,name_ar) values($1,$2,'Units','وحدات')", [categoryId, `units-${suffix}`]);
+    const created = (await db.query("select catalog_create_product($1::jsonb,null) result", [{
+      slug: `unit-contract-${suffix}`,
+      category_id: categoryId,
+      name_en: "Unit contract",
+      name_ar: "عقد الوحدات",
+      is_active: true,
+      variants: [{ sku: `UNIT-${suffix}`, base_price: 100, stock: 20, is_default: true, is_active: true, attributes: [] }],
+      specifications: [],
+    }])).rows[0].result;
+    const variantId = created.variant_ids[0];
+    const originalUnitId = (await db.query("select id from variant_packaging_units where variant_id=$1 and is_active", [variantId])).rows[0].id;
+    const boxId = randomUUID();
+    const ampouleId = randomUUID();
+    await db.query("select catalog_replace_packaging_units($1,$2::jsonb,null)", [variantId, JSON.stringify([
+      { id: boxId, parent_unit_id: null, code: `BOX-${suffix}`, label_en: "Box", label_ar: "علبة", quantity_per_parent: { numerator: 1, denominator: 1 }, is_base_unit: false, is_sellable: true, is_default_sale_unit: true, default_price_mode: "explicit", is_active: true },
+      { id: ampouleId, parent_unit_id: boxId, code: `AMP-${suffix}`, label_en: "Ampoule", label_ar: "أمبول", quantity_per_parent: { numerator: 4, denominator: 1 }, is_base_unit: true, is_sellable: true, is_default_sale_unit: false, default_price_mode: "derived", is_active: true },
+    ])]);
+
+    const active = (await db.query(`
+      select id,label_en,base_quantity_num::int as base_quantity_num,base_quantity_den::int as base_quantity_den
+      from variant_packaging_units
+      where variant_id=$1 and is_active and archived_at is null and is_sellable
+      order by base_quantity_num desc
+    `, [variantId])).rows;
+    expect(active).toEqual([
+      { id: boxId, label_en: "Box", base_quantity_num: 4, base_quantity_den: 1 },
+      { id: ampouleId, label_en: "Ampoule", base_quantity_num: 1, base_quantity_den: 1 },
+    ]);
+    expect(active).toHaveLength(2);
+
+    const archived = (await db.query("select is_active,archived_at is not null as archived from variant_packaging_units where id=$1", [originalUnitId])).rows[0];
+    expect(archived).toEqual({ is_active: false, archived: true });
+    expect((await db.query("select count(*)::int count from variant_packaging_units where variant_id=$1 and is_active and archived_at is null and is_sellable", [variantId])).rows[0].count).toBe(2);
+  }), 30_000);
 });

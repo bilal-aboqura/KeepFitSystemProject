@@ -241,6 +241,218 @@ returns timestamptz language sql stable security definer set search_path = '' as
   select now()
 $$;
 
+create or replace function public.pricing_resolve_targets(
+  p_customer_id uuid,
+  p_targets jsonb,
+  p_at timestamptz default null
+)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare
+  effective_at timestamptz := coalesce(p_at, transaction_timestamp());
+  resolved jsonb;
+begin
+  if jsonb_typeof(p_targets) is distinct from 'array' or jsonb_array_length(p_targets) > 100 then
+    raise exception using errcode = '22023', message = 'PRICING_TARGET_INVALID';
+  end if;
+  if p_customer_id is not null and not exists (select 1 from public.customers where id = p_customer_id) then
+    raise exception using errcode = 'P0002', message = 'CUSTOMER_NOT_FOUND';
+  end if;
+
+  with recursive raw_requested as (
+    select
+      (entry.value->>'variantId')::uuid as variant_id,
+      (entry.value->>'sellableUnitId')::uuid as sellable_unit_id,
+      entry.ordinality::int as ordinality
+    from jsonb_array_elements(p_targets) with ordinality as entry(value, ordinality)
+  ), requested as (
+    select variant_id, sellable_unit_id, min(ordinality) as ordinality
+    from raw_requested
+    group by variant_id, sellable_unit_id
+  ), customer_context as (
+    select customer_type_id, direct_price_list_id
+    from public.customers
+    where id = p_customer_id
+  ), catalog as (
+    select
+      requested.ordinality,
+      requested.variant_id,
+      requested.sellable_unit_id,
+      selected.base_quantity_num as target_base_num,
+      selected.base_quantity_den as target_base_den
+    from requested
+    join public.product_variants variant
+      on variant.id = requested.variant_id and variant.is_active and variant.archived_at is null
+    join public.products product
+      on product.id = variant.product_id and product.is_active and product.archived_at is null
+    join public.variant_packaging_units selected
+      on selected.id = requested.sellable_unit_id and selected.variant_id = requested.variant_id
+      and selected.is_active and selected.archived_at is null and selected.is_sellable
+  ), unit_path as (
+    select
+      catalog.ordinality,
+      catalog.variant_id,
+      catalog.sellable_unit_id,
+      unit.id as candidate_unit_id,
+      unit.parent_unit_id,
+      0 as depth,
+      catalog.target_base_num,
+      catalog.target_base_den,
+      unit.base_quantity_num as source_base_num,
+      unit.base_quantity_den as source_base_den
+    from catalog
+    join public.variant_packaging_units unit on unit.id = catalog.sellable_unit_id
+    union all
+    select
+      unit_path.ordinality,
+      unit_path.variant_id,
+      unit_path.sellable_unit_id,
+      parent.id,
+      parent.parent_unit_id,
+      unit_path.depth + 1,
+      unit_path.target_base_num,
+      unit_path.target_base_den,
+      parent.base_quantity_num,
+      parent.base_quantity_den
+    from unit_path
+    join public.variant_packaging_units parent
+      on parent.id = unit_path.parent_unit_id and parent.variant_id = unit_path.variant_id
+      and parent.is_active and parent.archived_at is null
+  ), source_lists as (
+    select 'direct_price_list'::text as source, context.direct_price_list_id as price_list_id, 2 as priority
+    from customer_context context
+    where context.direct_price_list_id is not null
+    union all
+    select 'customer_type_price_list', mapping.price_list_id, 3
+    from customer_context context
+    join public.customer_type_price_list_mappings mapping
+      on mapping.customer_type_id = context.customer_type_id
+      and mapping.is_active and mapping.archived_at is null
+    union all
+    select 'default_price_list', configuration.default_price_list_id, 4
+    from public.pricing_configuration configuration
+    where configuration.singleton
+  ), override_candidates as (
+    select
+      path.ordinality,
+      path.variant_id,
+      path.sellable_unit_id,
+      'customer_override'::text as source,
+      1 as priority,
+      override.id as reference_id,
+      null::uuid as price_list_id,
+      override.amount_minor,
+      override.currency,
+      path.candidate_unit_id as source_unit_id,
+      path.depth,
+      path.target_base_num,
+      path.target_base_den,
+      path.source_base_num,
+      path.source_base_den
+    from unit_path path
+    join public.customer_unit_price_overrides override
+      on override.customer_id = p_customer_id
+      and override.variant_id = path.variant_id
+      and override.sellable_unit_id = path.candidate_unit_id
+      and override.is_active and override.archived_at is null
+      and coalesce(override.valid_from, '-infinity'::timestamptz) <= effective_at
+      and coalesce(override.valid_until, 'infinity'::timestamptz) > effective_at
+  ), list_candidates as (
+    select
+      path.ordinality,
+      path.variant_id,
+      path.sellable_unit_id,
+      source.source,
+      source.priority,
+      item.id as reference_id,
+      source.price_list_id,
+      item.amount_minor,
+      item.currency,
+      path.candidate_unit_id as source_unit_id,
+      path.depth,
+      path.target_base_num,
+      path.target_base_den,
+      path.source_base_num,
+      path.source_base_den
+    from unit_path path
+    join source_lists source on true
+    join public.price_lists list
+      on list.id = source.price_list_id and list.is_active and list.archived_at is null
+    join public.price_list_items item
+      on item.price_list_id = source.price_list_id
+      and item.variant_id = path.variant_id
+      and item.sellable_unit_id = path.candidate_unit_id
+      and item.is_active and item.archived_at is null
+      and coalesce(item.valid_from, '-infinity'::timestamptz) <= effective_at
+      and coalesce(item.valid_until, 'infinity'::timestamptz) > effective_at
+  ), candidates as (
+    select * from override_candidates
+    union all
+    select * from list_candidates
+  ), ranked as (
+    select candidates.*,
+      row_number() over (partition by variant_id, sellable_unit_id order by priority, depth, reference_id) as candidate_rank
+    from candidates
+  ), selected as (
+    select
+      requested.ordinality,
+      requested.variant_id,
+      requested.sellable_unit_id,
+      catalog.variant_id is not null as target_available,
+      ranked.source,
+      ranked.reference_id,
+      ranked.price_list_id,
+      ranked.currency,
+      ranked.source_unit_id,
+      ranked.depth,
+      case when ranked.reference_id is null then null else
+        round(
+          ranked.amount_minor::numeric * ranked.target_base_num * ranked.source_base_den
+          / (ranked.target_base_den * ranked.source_base_num)
+        )::bigint
+      end as amount_minor
+    from requested
+    left join catalog using (variant_id, sellable_unit_id, ordinality)
+    left join ranked
+      on ranked.variant_id = requested.variant_id
+      and ranked.sellable_unit_id = requested.sellable_unit_id
+      and ranked.candidate_rank = 1
+  )
+  select coalesce(jsonb_agg(
+    case when selected.amount_minor is null then
+      jsonb_build_object(
+        'variantId', selected.variant_id,
+        'sellableUnitId', selected.sellable_unit_id,
+        'availability', 'unavailable',
+        'reason', case when selected.target_available then 'no_price' else 'target_unavailable' end,
+        'effectiveAt', effective_at
+      )
+    else
+      jsonb_build_object(
+        'variantId', selected.variant_id,
+        'sellableUnitId', selected.sellable_unit_id,
+        'availability', 'priced',
+        'amountMinor', selected.amount_minor::text,
+        'currency', selected.currency,
+        'source', selected.source,
+        'resolutionKind', case when selected.depth = 0 then 'explicit' else 'derived' end,
+        'priceListId', selected.price_list_id,
+        'priceListItemId', case when selected.source = 'customer_override' then null else selected.reference_id end,
+        'overrideId', case when selected.source = 'customer_override' then selected.reference_id else null end,
+        'derivedFromUnitId', case when selected.depth = 0 then null else selected.source_unit_id end,
+        'effectiveAt', effective_at
+      )
+    end
+    order by selected.ordinality
+  ), '[]'::jsonb) into resolved
+  from selected;
+
+  return resolved;
+exception
+  when invalid_text_representation or numeric_value_out_of_range or division_by_zero then
+    raise exception using errcode = '22023', message = 'PRICING_TARGET_INVALID';
+end
+$$;
+
 create or replace function public.pricing_set_default(
   p_actor_id uuid,
   p_price_list_id uuid,
@@ -490,6 +702,7 @@ grant select, insert, update on public.price_lists, public.pricing_configuration
 
 revoke all on function public.pricing_assert_admin(uuid) from public, anon, authenticated;
 revoke all on function public.pricing_current_time() from public, anon, authenticated;
+revoke all on function public.pricing_resolve_targets(uuid,jsonb,timestamptz) from public, anon, authenticated;
 revoke all on function public.pricing_set_default(uuid,uuid,bigint,text,uuid) from public, anon, authenticated;
 revoke all on function public.pricing_set_customer_type_mapping(uuid,uuid,uuid,text,uuid) from public, anon, authenticated;
 revoke all on function public.pricing_assign_customer_list(uuid,uuid,uuid,text,uuid) from public, anon, authenticated;
@@ -498,6 +711,7 @@ revoke all on function public.pricing_upsert_customer_override(uuid,uuid,jsonb,u
 revoke all on function public.pricing_create_order(jsonb,jsonb,text) from public, anon, authenticated;
 grant execute on function public.pricing_assert_admin(uuid) to service_role;
 grant execute on function public.pricing_current_time() to service_role;
+grant execute on function public.pricing_resolve_targets(uuid,jsonb,timestamptz) to service_role;
 grant execute on function public.pricing_set_default(uuid,uuid,bigint,text,uuid) to service_role;
 grant execute on function public.pricing_set_customer_type_mapping(uuid,uuid,uuid,text,uuid) to service_role;
 grant execute on function public.pricing_assign_customer_list(uuid,uuid,uuid,text,uuid) to service_role;

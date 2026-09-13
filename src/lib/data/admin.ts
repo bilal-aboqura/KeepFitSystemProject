@@ -6,6 +6,8 @@ export interface AdminStats {
   activeProducts: number;
   lowStock: number;
   pendingCustomerTypeRequests: number;
+  pendingFulfillmentOrders: number;
+  commerceBlockers: number;
   recentOrders: {
     id: string;
     order_number: string;
@@ -28,7 +30,7 @@ export async function getAdminStats(): Promise<AdminStats | null> {
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  const [today, monthPaid, active, low, recent, pendingTypes] = await Promise.all([
+  const [today, monthPaid, active, low, recent, pendingTypes, pendingFulfillment, invalidRules, unavailablePrices] = await Promise.all([
     supabase
       .from("orders")
       .select("id", { count: "exact", head: true })
@@ -57,6 +59,9 @@ export async function getAdminStats(): Promise<AdminStats | null> {
       .from("customer_type_requests")
       .select("id", { count: "exact", head: true })
       .eq("status", "pending"),
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("fulfillment_status", "pending"),
+    supabase.from("commerce_quantity_rules").select("id", { count: "exact", head: true }).eq("is_active", true).is("archived_at", null).or("minimum_quantity.lte.0,quantity_increment.lte.0"),
+    supabase.from("variant_packaging_units").select("id,price_list_items!left(id)", { count: "exact", head: true }).eq("is_active", true).eq("is_sellable", true).is("archived_at", null).is("price_list_items.id", null),
   ]);
 
   const revenueMonth =
@@ -68,6 +73,8 @@ export async function getAdminStats(): Promise<AdminStats | null> {
     activeProducts: active.count ?? 0,
     lowStock: low.count ?? 0,
     pendingCustomerTypeRequests: pendingTypes.count ?? 0,
+    pendingFulfillmentOrders: pendingFulfillment.count ?? 0,
+    commerceBlockers: (invalidRules.count ?? 0) + (unavailablePrices.count ?? 0),
     recentOrders: (recent.data ?? []) as AdminStats["recentOrders"],
   };
 }

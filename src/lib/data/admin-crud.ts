@@ -129,10 +129,7 @@ export interface AdminCustomer {
   pending_request_id: string | null;
 }
 
-/**
- * Aggregate unique customers from the orders table by phone number.
- * This captures ALL customers — both registered and guest checkout.
- */
+/** Keep persistent Customers distinct from every guest Order snapshot. */
 export async function adminListCustomers(): Promise<AdminCustomer[]> {
   const sb = getSupabaseServiceClient();
   if (!sb) return [];

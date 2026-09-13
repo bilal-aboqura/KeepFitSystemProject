@@ -16,6 +16,8 @@ import {
   CreditCard,
   Clock,
 } from "lucide-react";
+import { OrderSnapshot } from "@/components/admin/order-snapshot";
+import { StatusBadge, adminStatusLabel } from "@/components/admin/status-badge";
 
 export default async function OrderDetailPage({
   params,
@@ -70,8 +72,8 @@ export default async function OrderDetailPage({
         <h1 className="font-heading text-2xl font-bold text-fg">
           {ar ? "طلب" : "Order"} #{order.order_number}
         </h1>
-        <StatusPill value={order.payment_status} />
-        <StatusPill value={order.fulfillment_status} />
+        <StatusBadge value={order.payment_status} lang={lang} />
+        <StatusBadge value={order.fulfillment_status} lang={lang} />
       </div>
 
       <div className="mt-1 flex items-center gap-1.5 text-xs text-fg-dim">
@@ -82,7 +84,7 @@ export default async function OrderDetailPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         {/* ── Left column: items + totals ────────────────────────────── */}
         <div className="space-y-6 lg:col-span-2">
-          <OrderItemsEditor
+          {order.commerce_snapshot_version === 1 ? <OrderSnapshot order={order as never} lang={lang} /> : <OrderItemsEditor
             orderId={order.id}
             initialItems={items.map((item) => ({
               ...item,
@@ -107,7 +109,7 @@ export default async function OrderDetailPage({
             discountCode={order.discount_code}
             paymentMethod={order.payment_method}
             lang={lang}
-          />
+          />}
         </div>
 
         {/* ── Right column: customer + payment info ──────────────────── */}
@@ -121,7 +123,7 @@ export default async function OrderDetailPage({
             <div className="space-y-3 text-sm">
               <div className="flex items-start gap-2">
                 <User size={14} className="mt-0.5 shrink-0 text-fg-dim" />
-                <span className="text-fg">{order.customer_name}</span>
+                {order.customer_id ? <Link className="text-brand underline" href={`/admin/customers/${order.customer_id}`}>{order.customer_name}</Link> : <span className="text-fg">{order.customer_name} · {ar ? "زائر" : "Guest"}</span>}
               </div>
               <div className="flex items-start gap-2">
                 <Phone size={14} className="mt-0.5 shrink-0 text-fg-dim" />
@@ -151,15 +153,15 @@ export default async function OrderDetailPage({
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-fg-dim">{ar ? "الطريقة" : "Method"}</span>
-                <span className="text-fg">{order.payment_method}</span>
+                <span className="text-fg">{adminStatusLabel(order.payment_method, lang)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-fg-dim">{ar ? "الحالة" : "Status"}</span>
-                <StatusPill value={order.payment_status} />
+                <StatusBadge value={order.payment_status} lang={lang} />
               </div>
               <div className="flex justify-between">
                 <span className="text-fg-dim">{ar ? "التنفيذ" : "Fulfillment"}</span>
-                <StatusPill value={order.fulfillment_status} />
+                <StatusBadge value={order.fulfillment_status} lang={lang} />
               </div>
               {order.kashier_payment_id && (
                 <div className="flex justify-between">
@@ -187,19 +189,4 @@ export default async function OrderDetailPage({
       </div>
     </div>
   );
-}
-
-function StatusPill({ value }: { value: string }) {
-  const cls: Record<string, string> = {
-    paid: "pill-success",
-    pending: "pill-warning",
-    failed: "pill-danger",
-    delivered: "pill-success",
-    shipped: "pill-info",
-    processing: "pill-warning",
-    cancelled: "pill-danger",
-    returned: "pill-danger",
-    refunded: "pill-neutral",
-  };
-  return <span className={`pill ${cls[value] ?? "pill-neutral"}`}>{value}</span>;
 }

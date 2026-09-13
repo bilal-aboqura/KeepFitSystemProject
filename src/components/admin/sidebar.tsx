@@ -18,11 +18,12 @@ import {
   MessageSquareText,
   ClipboardCheck,
   BadgeDollarSign,
+  ListOrdered,
 } from "lucide-react";
 import { useLang } from "@/components/language/provider";
 import { cn } from "@/lib/utils";
 
-type NavKey = "dashboard" | "analytics" | "products" | "brands" | "categories" | "attributes" | "pricing" | "orders" | "reviews" | "customers" | "customerTypeRequests" | "newsletter" | "discounts" | "shipping" | "bundles" | "content" | "customize" | "settings";
+type NavKey = "dashboard" | "analytics" | "products" | "brands" | "categories" | "attributes" | "pricing" | "quantityRules" | "orders" | "reviews" | "customers" | "customerTypeRequests" | "newsletter" | "discounts" | "shipping" | "bundles" | "content" | "customize" | "settings";
 
 interface NavItem {
   href: string;
@@ -51,6 +52,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/catalog/categories", key: "categories", Icon: Layers },
       { href: "/admin/catalog/attributes", key: "attributes", Icon: Settings },
       { href: "/admin/pricing", key: "pricing", Icon: BadgeDollarSign },
+      { href: "/admin/commerce/quantity-rules", key: "quantityRules", Icon: ListOrdered },
       { href: "/admin/orders", key: "orders", Icon: ShoppingCart },
       { href: "/admin/reviews", key: "reviews", Icon: MessageSquareText },
       { href: "/admin/customers", key: "customers", Icon: Users },

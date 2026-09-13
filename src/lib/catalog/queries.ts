@@ -5,6 +5,25 @@ import { catalogDatabaseError } from "./errors";
 import { deriveCompatibilityUnitPrice } from "@/lib/pricing/legacy-adjustments";
 import { mapPackagingUnit } from "./packaging-commands";
 
+export const catalogSellableUnitColumns = "id,variant_id,code,label_en,label_ar,base_quantity_num,base_quantity_den,is_sellable,is_default_sale_unit,is_active,archived_at";
+
+export function mapCatalogSellableUnitRow(row: Record<string, unknown>) {
+  return {
+    sellable_unit_id: String(row.id),
+    variant_id: String(row.variant_id),
+    unit_code: row.code ? String(row.code) : null,
+    unit_label_en: String(row.label_en),
+    unit_label_ar: String(row.label_ar),
+    base_quantity: {
+      numerator: Number(row.base_quantity_num),
+      denominator: Number(row.base_quantity_den),
+    },
+    is_sellable: Boolean(row.is_sellable),
+    is_default_sale_unit: Boolean(row.is_default_sale_unit),
+    is_active: Boolean(row.is_active) && !row.archived_at,
+  };
+}
+
 const productProjection = `
   id,slug,category_id,brand_id,name_en,name_ar,short_desc_en,short_desc_ar,long_desc_en,long_desc_ar,
   is_active,is_featured,seo_title_en,seo_title_ar,seo_description_en,seo_description_ar,images,

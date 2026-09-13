@@ -116,7 +116,8 @@ export const ui = {
       repriceRetry: "We could not refresh prices. Try again before checkout.",
     },
     pricingAdmin: { lists: "Price Lists", schedule: "Schedule", mappings: "Customer Type mappings", directList: "Direct List", override: "Customer override", explicit: "Explicit", derived: "Derived", bulkSave: "Save all prices", overlap: "Price periods cannot overlap", invalidTarget: "Choose a valid Variant and Sellable Unit" },
-    checkout: {
+      commerce: { checking: "Checking current terms…", retry: "Try again", review: "Review current price and shipping", confirm: "Confirm terms and place order", changed: "Checkout terms changed", legacyRecovery: "Choose a current variant and Sellable Unit", minimum: "Minimum", increment: "Increment" },
+      checkout: {
       title: "Checkout",
       contactInfo: "Contact & Shipping",
       fullName: "Full Name",
@@ -231,7 +232,8 @@ export const ui = {
       dashboard: "Dashboard",
       newsletter: "Newsletter",
       products: "Products",
-      orders: "Orders",
+        orders: "Orders",
+        quantityRules: "Quantity Rules",
       reviews: "Reviews",
       customers: "Customers",
       customerTypeRequests: "Customer Type Requests",
@@ -396,7 +398,8 @@ export const ui = {
       repriceRetry: "تعذر تحديث الأسعار. حاول مرة أخرى قبل الدفع.",
     },
     pricingAdmin: { lists: "قوائم الأسعار", schedule: "الجدولة", mappings: "ربط أنواع العملاء", directList: "قائمة مباشرة", override: "استثناء للعميل", explicit: "صريح", derived: "مشتق", bulkSave: "حفظ كل الأسعار", overlap: "لا يمكن أن تتداخل فترات الأسعار", invalidTarget: "اختر متغير المنتج ووحدة البيع بشكل صحيح" },
-    checkout: {
+      commerce: { checking: "جارٍ التحقق من الشروط الحالية…", retry: "حاول مرة أخرى", review: "راجع السعر والشحن الحاليين", confirm: "أكد الشروط وأرسل الطلب", changed: "تغيرت شروط الطلب", legacyRecovery: "اختر متغيرًا ووحدة بيع حاليين", minimum: "الحد الأدنى", increment: "الزيادة" },
+      checkout: {
       title: "إتمام الطلب",
       contactInfo: "بيانات التواصل والتوصيل",
       fullName: "الاسم بالكامل",
@@ -511,7 +514,8 @@ export const ui = {
       dashboard: "الرئيسية",
       newsletter: "النشرة البريدية",
       products: "المنتجات",
-      orders: "الطلبات",
+        orders: "الطلبات",
+        quantityRules: "قواعد الكميات",
       reviews: "التقييمات",
       customers: "العملاء",
       customerTypeRequests: "طلبات أنواع العملاء",

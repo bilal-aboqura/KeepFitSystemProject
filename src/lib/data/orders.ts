@@ -309,3 +309,89 @@ export async function getOrderByNumber(
     .maybeSingle();
   return (data as OrderForConfirmation) ?? null;
 }
+
+export interface AdminOrderQuery {
+  cursor?: string;
+  query?: string;
+  fulfillment?: string;
+  payment?: string;
+  customerType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+}
+
+interface AdminOrderCursor {
+  createdAt: string;
+  id: string;
+}
+
+export function encodeAdminOrderCursor(cursor: AdminOrderCursor) {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+export function decodeAdminOrderCursor(value?: string): AdminOrderCursor | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Partial<AdminOrderCursor>;
+    if (typeof parsed.createdAt !== "string" || !Number.isFinite(Date.parse(parsed.createdAt))) return null;
+    if (typeof parsed.id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(parsed.id)) return null;
+    return { createdAt: new Date(parsed.createdAt).toISOString(), id: parsed.id };
+  } catch {
+    return null;
+  }
+}
+
+function adminDateBoundary(value: string | undefined, endOfDay: boolean) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+export async function listAdminOrders(input: AdminOrderQuery = {}) {
+  const sb = getSupabaseServiceClient();
+  if (!sb) return { orders: [], nextCursor: null };
+  const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
+  let skuOrderIds: string[] | null = null;
+  const term = input.query?.trim();
+  if (term) {
+    const { data } = await sb.from("order_items").select("order_id").ilike("sku", `%${term}%`).limit(100);
+    skuOrderIds = [...new Set((data ?? []).map((row) => row.order_id).filter(Boolean))];
+  }
+  let query = sb.from("orders").select("id,order_number,customer_id,customer_name,customer_phone,alt_phone,governorate,city,address,notes,grand_total,payment_method,payment_status,fulfillment_status,customer_type_code_snapshot,commerce_snapshot_version,shipping_snapshot,bosta,mylerz,order_items(id,sku,name_en,name_ar,quantity,price),created_at")
+    .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(limit + 1);
+  const cursor = decodeAdminOrderCursor(input.cursor);
+  if (cursor) query = query.or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`);
+  if (input.fulfillment) query = query.eq("fulfillment_status", input.fulfillment);
+  if (input.payment) query = query.eq("payment_status", input.payment);
+  if (input.customerType === "guest") query = query.is("customer_id", null);
+  else if (input.customerType) query = query.eq("customer_type_code_snapshot", input.customerType);
+  const dateFrom = adminDateBoundary(input.dateFrom, false);
+  const dateTo = adminDateBoundary(input.dateTo, true);
+  if (dateFrom) query = query.gte("created_at", dateFrom);
+  if (dateTo) query = query.lte("created_at", dateTo);
+  if (term) {
+    const escaped = term.replace(/[%_,]/g, "");
+    const clauses = [`order_number.ilike.%${escaped}%`, `customer_name.ilike.%${escaped}%`, `customer_phone.ilike.%${escaped}%`];
+    if (skuOrderIds?.length) clauses.push(`id.in.(${skuOrderIds.join(",")})`);
+    query = query.or(clauses.join(","));
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+  const rows = data ?? [];
+  const lastVisible = rows[limit - 1];
+  return {
+    orders: rows.slice(0, limit),
+    nextCursor: rows.length > limit && lastVisible
+      ? encodeAdminOrderCursor({ createdAt: lastVisible.created_at, id: lastVisible.id })
+      : null,
+  };
+}
+
+export async function getAdminOrderSnapshot(orderId: string) {
+  const sb = getSupabaseServiceClient();
+  if (!sb) return null;
+  const { data, error } = await sb.from("orders").select("id,order_number,customer_id,customer_name,customer_phone,alt_phone,governorate,city,address,notes,items_total,shipping_cost,discount,grand_total,items_total_minor,shipping_cost_minor,discount_minor,grand_total_minor,payment_method,payment_status,fulfillment_status,created_at,commerce_snapshot_version,commerce_context_kind,customer_type_code_snapshot,customer_type_name_en_snapshot,customer_type_name_ar_snapshot,currency,discount_snapshot,shipping_snapshot,order_items(id,product_id,variant_id,sellable_unit_id,sku,sellable_unit_code,product_name_en,product_name_ar,name_en,name_ar,variant_label_en,variant_label_ar,unit_label_en,unit_label_ar,base_quantity_per_unit_num,base_quantity_per_unit_den,equivalent_base_quantity_num,equivalent_base_quantity_den,price,line_total,unit_price_minor,line_total_minor,price_currency,pricing_source,price_is_derived,quantity,minimum_quantity_snapshot,quantity_increment_snapshot,quantity_rule_context_kind)").eq("id", orderId).maybeSingle();
+  if (error) throw error;
+  return data;
+}

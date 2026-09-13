@@ -17,22 +17,29 @@ Shipping / Discount policy ─────────────────�
 
 Feature 005 owns quantity rules, quote/confirmation state, submission idempotency, commerce snapshots, and orchestration. It references but does not copy Customer-Type, Catalog conversion, Pricing precedence, address, discount, or shipping configuration.
 
-## Hard prerequisite contract
+## Verified prerequisite contract
 
-The physical names below for Sellable Unit and Pricing references are logical until Features 003 and 004 converge with their approved contracts. The Feature 005 migration preflight must bind them to verified implemented relations/functions and stop before writes if any are absent.
+Feature 003 and Feature 004 are bound to these verified physical interfaces. `tests/integration/commerce/prerequisite-contracts.test.ts` applies both owning migrations transactionally and proves the relation, ownership, sellability, conversion, public-coverage, batching, and callable-resolver contracts before Feature 005 writes are allowed.
 
-Required Catalog facts:
+Catalog ownership:
 
-- stable Variant and Sellable Unit IDs with an enforceable Unit → Variant relationship;
-- Unit active/archive and independent-sellability state;
-- bilingual Unit label/code;
-- authoritative base-equivalent/conversion result.
+- Variant relation and key: `public.product_variants(id)`.
+- Sellable Unit relation and key: `public.variant_packaging_units(id)`.
+- Unit → Variant ownership: composite `UNIQUE (id, variant_id)` on `variant_packaging_units`, referenced by composite foreign keys such as `price_list_items(sellable_unit_id, variant_id)`.
+- Sellability/lifecycle: `is_sellable`, `is_active`, and `archived_at`.
+- Customer-facing identity: `code`, `label_en`, and `label_ar`.
+- Exact conversion: `quantity_per_parent_num`, `quantity_per_parent_den`, `base_quantity_num`, and `base_quantity_den`, protected by `public.catalog_assert_packaging_graph(uuid)`.
+- Owning migration: `supabase/migrations/003b_catalog_packaging_units.sql`; canonical definitions are mirrored in `supabase/schema.sql`.
 
-Required Pricing facts:
+Pricing ownership:
 
-- batched and final-transaction-callable resolution for `(context, Variant, Sellable Unit, transaction time)`;
-- integer EGP minor-unit amount, currency, source kind/reference, and derived state;
-- no client-selected Customer, Customer Type, Price List, amount, or clock.
+- Configuration: `public.price_lists`, `public.pricing_configuration`, `public.price_list_items`, `public.customer_type_price_list_mappings`, and `public.customer_unit_price_overrides`.
+- Batch/final-transaction resolver: `public.pricing_resolve_targets(uuid, jsonb, timestamptz)`; the UUID is a server-derived Customer ID or null for public context, and the resolver derives current Customer-Type/direct-list authority internally.
+- Resolver output: base-10 `amountMinor`, `EGP` currency, source kind/reference, explicit/derived state, source Unit, and one database-effective timestamp.
+- Application resolver: `src/lib/pricing/resolver.ts`, with checked integer primitives in `src/lib/pricing/money.ts`.
+- Owning migration: `supabase/migrations/004_pricing_engine.sql`; canonical definitions are mirrored in `supabase/schema.sql`.
+
+Feature 005 preflight uses only these names and aborts before writes if any relation, column, constraint, function, privilege, or public-price coverage check fails.
 
 ## Commerce Quantity Rule
 

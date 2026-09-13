@@ -32,9 +32,9 @@ describe("Feature 001-003 and external adapter pricing regression", () => {
 
   it("retains COD/card, shipping, coupon, customer, and catalog seams without client monetary authority", async () => {
     const [route, orders] = await Promise.all([readFile("src/app/api/orders/route.ts", "utf8"), readFile("src/lib/data/orders.ts", "utf8")]);
-    expect(route).toContain("getCurrentCustomer");
-    expect(route).toContain("variant_id");
-    expect(route).toContain("sellable_unit_id");
+    expect(route).toContain("finalizeConfirmedQuote");
+    expect(route).toContain("orderSubmissionInputSchema");
+    expect(route).not.toContain("grand_total");
     expect(orders).toContain("getShippingCostForProducts");
     expect(orders).toContain("resolveDiscount");
     expect(orders).toContain("calcOnlinePaymentDiscount");
